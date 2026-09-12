@@ -1,0 +1,58 @@
+# Git Usage
+
+## Branch Model
+
+| Branch | Purpose                                         |
+|--------|-------------------------------------------------|
+| `main` | ready working solution                          |
+| `feat/<name>` | Feature branches (short kebab-case name) |
+
+## Workflow
+
+Work onto mine branch - allowed.
+Never push.
+Always ask before commit something.
+
+This repository builds the three sibling repositories (`../tang-uknc`,
+`../tang-pk8000`, `../tang-korvet`) and the reconfig support lives in
+their trees.  A change there is a commit THERE, under their own
+`.claude/rules/git.md`, and asked for separately.
+
+## Commit Messages
+
+Short imperative subject line, no period. Examples:
+
+```
+hold the interrupt task across a core switch
+document the flash layout
+```
+
+- Keep subject under 72 characters
+- No ticket/issue prefix required
+- English only
+
+## What Not to Commit
+
+- `/.idea/`, `/.vscode/` - editor state
+- `/tools/` - the fetched toolchain, ~8 GB, restored by `make toolchain`;
+  the scripts in it are force-added (`git add -f tools/*.py tools/*.sh
+  tools/*.patch`) and a new script has to be too
+- `/build/`, `/mnano/build/` - build products, the cores' PnR output
+  among them (each core's `impl/pnr/` is under `build/cores/<core>/`;
+  the siblings keep their own on record, this repository does not)
+
+## What *is* committed on purpose
+
+- **`bin/uknc.fs`, `bin/pk8000.fs`, `bin/korvet.fs`, `bin/ultima.bin`,
+  `bin/bl616.bin`** - what a user flashes, so no toolchain is needed for
+  that.  Rebuilt from the tree: `make cores` copies each `.fs` to `bin/`
+  once its timing gate passes and packs `ultima.bin`; `make fw` leaves
+  the firmware in `build/fw/` and it is copied on by hand.
+- **`VERSION`** - read into the OSD's caption by `mnano/CMakeLists.txt`.
+
+## Working tree noise
+
+The tree may show a long list of `mode change 100755 => 100644` entries
+under `mnano/u8g2/`.  That is a checkout artefact inherited through the
+siblings from UKNC Nano, not work.  Use `git diff --summary` to tell it
+from a real edit.

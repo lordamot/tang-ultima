@@ -1,0 +1,60 @@
+Check ../tang-uknc, ../tang-pk8000, ../tang-korvet
+We need to create core-load-based emulator for tang
+So, menu option will allow to select and so load one of 3 available cores and tang will be switched to be one of 3 computers then. SD card should use directories - pk8000, uknc, korvet for what it currently uses sd card
+
+****
+
+(The mechanism was laid out first and one question asked - how the
+repository should hold the three cores: submodules, copies, or builds
+out of ../tang-* by relative path.  The answer was the relative path.)
+
+Tang Ultima, 0.1.0 alpha.  Nothing has been on a board.
+
+The mechanism.  The M0S-dock BL616 has no JTAG to the FPGA, so a core
+cannot be streamed in; what the GW2AR-18 does have is Gowin MultiBoot
+(UG290 7.5.4, in tools/gowin/doc): every bitstream's header names the
+flash address of the next one, a low pulse on RECONFIG_N (pin 9) makes
+the FPGA load it, and UG290 4.2 allows user logic to drive that pin as
+a GPIO.  The 8 MB flash holds the three 907 KB cores at 0, 0x100000
+and 0x200000, a ring UKNC -> PK8000 -> Korvet -> UKNC.  Power-up loads
+0; the firmware reads the wanted core from /sd/ultima.ini and hops the
+ring until the core id the FPGA answers is the wanted one - two hops at
+most, about 3 s each at Gowin's default loading rate.
+
+In the three siblings (working trees, not committed): sysctrl.v CMD 9 +
+A5h pulses reconfig; top.v drives reconfig_n low for 256 clocks; the
+.cst puts it on pin 9; the process config says RECONFIG_N: true;
+gowin_tcl.py takes --abs and --multiboot-addr (bare hex - the tool adds
+0x itself); timing_check.py takes a PnR directory; the testbench
+connects the port; fpga.md, mcu.md and CHANGELOG say so.  All three
+lint, all three build with 0 violations, reconfig_n is on pin 9 in each
+pin report.
+
+Here: the Makefile builds each core out of its sibling's tree into
+build/cores/<core>/ with the next slot's address, gates it with the
+sibling's own timing check, copies to bin/<core>.fs and packs
+bin/ultima.bin (3 004 570 bytes) - tools/mkimage.py refuses a ring that
+does not close, checking the binary field (the D2 command's operand at
+0x38, found by diffing two builds) and not just the header comment.
+make flash-image writes the three in one openFPGALoader run, since the
+board's USB bridge takes one run per replug.
+
+The firmware is Korvet Nano's MiSTeryNano copy with UKNC Nano's and
+PK8000 Nano's parts merged back (menu.c forms, keymaps, rt11sav, bas,
+sdc's IDE geometry and extra slot) plus ultima.c: the core table,
+/sd/ultima.ini, the walk (hold the interrupt task while the link is
+dead, acknowledge the new core's coldboot, remount the card).  Every
+main form has a Core entry opening a form of three 'C' entries, the
+running one marked; picking another writes the card, closes the images,
+sends CMD 9 and resets the MCU, and ultima_boot() at the next start
+finishes the walk.  Each core's files live under /sd/uknc, /sd/pk8000,
+/sd/korvet (settings, browser root, extrom/, RT11SAV), created when
+missing.  make fw builds (457 952 bytes); make menu-test walks all three
+cores' forms with 0 errors, 28 screens.
+
+Not verified, and only a board can: that RECONFIG_N from user logic
+reloads this board; that openFPGALoader --file-type bin writes the raw
+image; the switch's timing.  progress.md lists these and what to try
+first.  Also noticed: tang-pk8000 and tang-korvet do not track their
+tools/*.py scripts (their git.md says to force-add them); tang-uknc
+does.
