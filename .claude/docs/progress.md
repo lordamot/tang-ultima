@@ -1,5 +1,9 @@
 # Progress
 
+> Picking this up cold?  Read `handover.md` first - it is the snapshot of
+> what is on the board, what is committed, and the one decision left open.
+> This file is the running record of how it got there.
+
 ## State, 12 September 2026 (before the board)
 
 Version 0.1.0 alpha.  Built in one session from the three siblings.

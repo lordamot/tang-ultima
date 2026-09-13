@@ -154,6 +154,95 @@ left a true RECONFIG_N input, and SYS CMD 9 is still in `sysctrl.v` and
 `mnano/ultima.c` would need to change - the walk is in this repository's
 git history.  Nothing here depends on the wire being absent.
 
+## Could a switch be instant?  The four routes, and the facts
+
+Asked three times, so the reasoning lives here.  A switch costs 20 s and a
+power cycle because **nothing on the board can trigger a reconfiguration**.
+That is the scarce thing - not the destination.  Loading the FPGA's SRAM
+instead of its flash would still need a trigger *and* a configuration port,
+so it is not a way round the problem, it is the same problem.
+
+### The board facts these rest on
+
+Established on the board, 13 September 2026 (`progress.md` has the how):
+
+- Driving pin 9 from user logic reconfigures nothing; the pulse provably
+  fires, so reusing the pad as a GPIO cuts it from the controller.
+- **A JTAG RELOAD does reconfigure the device from flash address 0.**  So
+  the configuration controller is willing; only the pad is not.
+- `-use_mspi_as_gpio` does not stop the FPGA booting from the flash it
+  then takes over.
+- An install is 20 s and byte-exact.
+
+From the Tang Nano 20K schematic v1.3:
+
+```
+pin 9  PIN09_SYS_~{RECFG}   appears EXACTLY TWICE: the FPGA, and TP1
+test pads   TP1 RECONFIG_N   TP2 GND   TP3 TCK   TP4 TDO   TP5 TDI   TP6 TMS
+SD card     FPGA pins 80-85 ONLY (R53..R57 10K pull-ups, R49 22R on CLK)
+on-board BL616 (a BL616C, in-package flash) reaches the FPGA on:
+            JTAG 5/6/7/8, UART 69/70, SPI_CS/DAT/DIR/SCLK on 86/76/75/13
+            and NOTHING else - in particular no SDIO
+MODE0/MODE1 pins 88/87, which are the two buttons, strapped for MSPI:
+            change them and the board stops booting from flash at all
+free pins   25..32 (bank 5), 49 (bank 3); 48 is reconfig_n now.  The LCD_*
+            nets do reach the headers - the dock sits on 41/42, which are
+            PIN41_LCD_R4 and PIN42_LCD_R3
+companion BL616  ~440 KB SRAM; 4 MB flash, mfg partition 1.44 MB at 0x210000
+```
+
+### The routes
+
+| | wires | switch | at power-up | writes FPGA flash | effort | risk |
+|---|---|---|---|---|---|---|
+| **A** what we have | 0 | 20 s + power cycle by hand | direct | every switch | done | the erase window |
+| **B** wire pin 48 -> TP1, keep the writer | 1 | 20 s + ~3 s | direct | every switch | ~1 h | external pulse unproven |
+| **C** wire + revive MultiBoot, 3 slots | 1 | **~3 s** | direct | **never** | ~3-4 h | external pulse unproven |
+| **D** on-board BL616 loads SRAM | **0** | ~3-8 s | double boot | **never** | ~3-5 days | **the programmer** |
+| **E** companion BL616 loads SRAM | 4 | ~2-8 s | double boot | never | ~2-3 days | JTAG contention, unmeasured |
+
+**B and C** need one wire, from header pin 48 to TP1.  `reconfig_n` is
+already on pin 48, open drain, with pin 9 left a RECONFIG_N input, and CMD
+9 is already in every core and in `mnano/sysctrl.c`.  C is the better end
+state: a switch becomes a 3 s reconfiguration, the FPGA's flash is never
+written again, and the erase window disappears.  `mkimage.py`'s ring
+packer, the `--multiboot-addr` plumbing and `ultima.c`'s walk are all in
+commit `9e81c1a`; `flashwr.c` would stay, for *installing* a core into a
+slot from the card without a toolchain.  **What is unproven for both:** we
+know driving pin 9 as a GPIO does nothing; we have never seen a pulse
+*arriving* on pin 9 from outside work.  That is the pin's documented normal
+use and the controller is demonstrably willing, but it is an inference, and
+it is one wire and one build to settle.
+
+**D** is the only zero-wire route to an instant switch, and it is sound.
+The on-board BL616 already owns the JTAG and SRAM loading through it is not
+speculative - it is what `make flash-fpga` does in every sibling
+(`openFPGALoader -b tangnano20k bin/tang.fs`, no `-f`, and `-m/--write-sram`
+is the default).  It cannot see the card, so it would read the bitstream
+through a running core over the 86/76/75/13 link and stage it in its own
+in-package flash; the choice would live on the card and be re-applied at
+every power-up, so it survives power-off at the cost of a double boot.  The
+reason not to build it: **it replaces the firmware of the board's only
+programmer.**  `openFPGALoader` stops working unless the new firmware also
+emulates the FT2232 - upstream MiSTeryNano has an `ft2232d_emulator`, which
+`mnano/CMakeLists.txt` still globs for and which is **not in this tree or
+any sibling** - and a bad flash of that chip leaves nothing able to
+configure the FPGA until it is recovered through its BOOT pin.  That trades
+a board needing a power cycle for a board that might not be programmable.
+
+**E** is strictly worse than both B and D: four wires into TP3..TP6, and it
+must share TCK/TMS/TDI with the on-board BL616, whose idle behaviour on
+those pins nobody has measured.
+
+**Not an option:** SRAM without persistence.  A core loaded into SRAM is
+gone at power-off, and `.claude/rules/guideline.md` makes "the choice
+remembered across power cycles" part of the goal.  Any SRAM design has to
+re-apply the choice at power-up (D and E do) or write the flash anyway, at
+which point it is route A with extra steps.
+
+**Recommendation, if the power cycle is to go:** one wire, then C.  If it is
+not, A works, is committed, and is the optimum for zero wires.
+
 ## Where the three must agree
 
 - `Makefile`'s `CORES` and `DEFAULT_CORE`;

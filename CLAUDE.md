@@ -29,8 +29,9 @@ Started 12 September 2026.  **The switch works on a board**, as of 13
 September: the Korvet was chosen from the OSD, written to the flash from
 the card, read back over JTAG byte-identical, and booted.  It took two
 designs to get there - the first, Gowin MultiBoot, cannot be triggered on
-this board at all - and `.claude/docs/progress.md` is the record of both
-and must stay one.  Still say which claim you are making: "it builds", "it
+this board at all - and `.claude/docs/handover.md` is where to start after a
+break, and `.claude/docs/progress.md` is the record of both and must stay
+one.  Still say which claim you are making: "it builds", "it
 lints", "the menu walks on the host" and "it meets timing" are four
 claims, none of them "it works".
 

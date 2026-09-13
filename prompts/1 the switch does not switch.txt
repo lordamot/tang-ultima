@@ -234,3 +234,55 @@ cut it to about six and is not worth building.
 
 progress.md, CLAUDE.md, coreswitch.md and the guideline all corrected -
 they said "not yet tried" and now say what the board showed.
+
+---
+
+now estimate next. we currently flash each selected core into fpga flash.
+my question remains the same - can we load core into fpga board sram as we
+know we do not need power cycle the board
+[then] ok, let me ask other way. check ../tang-mc0511 for example. it has 2
+commands: make flash-fpga and make flash-fpga-flash; first one put tang
+bitstream onto where?
+[then] can we do something with onboard bl616 so it will be able to read
+bitstream from sd onto fpga sram?
+[then] save all as handover, I need to think and plan a bit
+
+***
+
+There is no ../tang-mc0511; those two targets are the siblings'.
+flash-fpga is `openFPGALoader -b tangnano20k bin/tang.fs` with no -f, and
+-m/--write-sram is the default, so it loads the FPGA's SRAM over JTAG -
+volatile, gone at power-off.  flash-fpga-flash is `-f -r`, and that -r is
+the JTAG RELOAD that booted the Korvet without a power cycle.
+
+The scarce thing is the reconfiguration TRIGGER, not the destination.  An
+SRAM load is a reconfiguration driven from outside, and there is no outside
+on this board: both openFPGALoader modes are a host talking through the
+on-board BL616, which only relays.
+
+Two corrections came out of the digging.  First, my claim that nothing on
+the board could hold a bitstream was wrong - the companion BL616 has 4 MB
+of its own flash with a 1.44 MB mfg partition, and a bitstream is 907 KB.
+Second, the on-board BL616 route is real: it already owns the FPGA's JTAG,
+SRAM loading through it is what flash-fpga does, and it is a BL616C with
+in-package flash.  It cannot see the card - the schematic says its only
+FPGA connections are JTAG 5/6/7/8, UART 69/70 and SPI on 86/76/75/13, no
+SDIO - so it would read the bitstream through a running core over that SPI
+link and stage it itself.  Zero wires, ~3-8 s, and the FPGA's flash never
+written again.
+
+The reason to refuse it: it replaces the firmware of the board's only
+programmer.  openFPGALoader stops working unless the new firmware also
+emulates the FT2232, and upstream's ft2232d_emulator is not in this tree or
+any sibling; a bad flash of that chip leaves nothing able to configure the
+FPGA until it is recovered through BOOT.  That trades a board needing a
+power cycle for a board that might not be programmable.
+
+Also ruled out: SRAM without persistence, because the goal says the choice
+is remembered across power cycles, so any SRAM design must re-apply it at
+power-up or write the flash anyway.
+
+Saved as a handover: .claude/docs/handover.md (state, commits, what is
+known and how, the open decision) and a new "Could a switch be instant?"
+section in coreswitch.md carrying the five routes and the schematic facts
+behind them.  progress.md and CLAUDE.md now point at the handover.
