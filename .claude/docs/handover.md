@@ -1,4 +1,97 @@
-# Handover, 13 September 2026
+# Handover, 13 September 2026, night - READ THIS FIRST
+
+**The switch works, on the board, from the OSD: Korvet -> PK8000 ->
+UKNC in seconds, no flash written, no power cycle, from the very first
+attempt.**  Seen by the user the same evening; `progress.md` ("The
+switch works") has the whole evening, including the one wrong flash.
+CLAUDE.md's mechanism paragraph is current.
+
+## The physical state, right now
+
+```
+FPGA flash address 0   a core with CMD 11 in it (the Korvet, unless the
+                       interrupted install of the evening finished - it booted,
+                       so it is one of the three); the old MultiBoot image is
+                       still behind it from 0x100000, stale, harmless
+companion BL616 (dock) bin/bl616.bin = build/fw/bl616.bin, 465 952 bytes, SHA
+                       59d9b9da..., 13 Sep 21:41: the stage 2 switch, the
+                       ping's two failure texts, "Save to flash" as the Core
+                       form's 4th entry, the USB keyboard fix.  VERSION still
+                       0.1.1 alpha
+SD card                /cores/{uknc,pk8000,korvet}.bin, all three with CMD 11
+                       /ultima.ini - names what the flash holds, NOT what is
+                       running; a switch does not touch it, "Save to flash" does
+on-board BL616         Sipeed's FPGA Partner at 0 (openFPGALoader works on a
+                       PC); OUR STAGE 2 v3 at 0x40000, SHA 4203ed7f..., 13 Sep
+                       20:18: the UART command server with the link log; the
+                       last switched core staged at 0x100000.  Fused, 4 MB.
+                       Factory image in bin/onboard/backup/
+```
+
+## What is NOT tested
+
+1. **"Save to flash"** under this firmware.  It is `flash_install()`,
+   which installed the Korvet the evening before with a byte-exact JTAG
+   readback; the function is unchanged, but that is an argument.  The
+   user has not tried the entry.
+2. **The one failed first attempt.**  On the dock firmware from the
+   evening before, the first switch after power-up sat on "Connecting"
+   and every later one worked; on the current firmware it worked first
+   time.  Not explained - a ping before the Partner had handed over to
+   stage 2 is the guess.  If it comes back: the OSD's second line now
+   says `no answer from stage 2 (st xx)` or `CMD 11: FIFO never has room
+   (st xx)`, and `make onboard-log` shows whether the `P` arrived, when,
+   and what went back (`LOG_RX`, `LOG_TX`, `LOG_READY`).
+3. The UKNC's own serial port after `cl_release()` hands pin 69 back;
+   each machine's behaviour under this firmware rather than its own.
+4. How long a switch takes end to end.  The budget said 10-12 s; "seconds"
+   is all that was said.
+5. **The USB keyboard fix** (`mnano/usb_host.c`, and the same patch in
+   the three siblings): the keyboard was lost until a power cycle, most
+   likely a sleeping keyboard re-attaching inside the old 100 ms poll;
+   now the stack's own hooks, a stop flag, a 1 s URB timeout (with
+   `errorcode` cleared before each submit - this SDK refuses a killed
+   URB otherwise, and the first build was dead from boot for it), a
+   CLEAR_FEATURE on a stall.  Keyboard works from boot on the dock's
+   current firmware (`59d9b9da...`); whether it survives the keyboard's
+   sleep is the test, not yet reported.
+
+## Decided, not to be redesigned quietly
+
+The switch needs non-PC power.  On a PC the Partner stays the
+programmer and stage 2 never runs - Sipeed's rule, not ours.  Upstream's
+unconditional bootloader (`bl616_bootloader_0x20000_nano20k_signed.bin`,
+FPGA-Companion #170) would lift that at the cost of the USB-C
+programmer; priced on 13 Sep and **declined** - `progress.md`, "The
+switch on PC power".
+
+## The two traps of the evening
+
+- `make flash-mcu` flashes `bin/bl616.bin`.  `make fw` leaves the build
+  in `build/fw/`.  Copy it, or `FW_BIN=build/fw/bl616.bin`; the target
+  now refuses when `build/fw/` is newer.  The 461 712-byte file is the
+  old flash-writing firmware - if the flash tool prints that size, stop.
+- Every `flash-mcu*` target writes whatever BL616 is `/dev/ttyACM0`.
+  The dock and the Tang each go on the PC alone.
+
+## Nothing is committed
+
+In any of the four repositories.  Changed: tang-ultima (Makefile,
+tools/{onboard.sh,efuse_bl616.py,mkstage.py}, onboard/,
+mnano/{coreload.c,coreload.h,coreload_proto.h,ultima.c,ultima.h,menu.c,
+menu_test.c,spi.h,CMakeLists.txt}, bin/{onboard/,*.bin,*.fs}, docs,
+CHANGELOG, CLAUDE.md, .gitignore) and each sibling
+(tang/src/mister/{coreload.v,sysctrl.v}, tang/src/top.v, tang/*.gprj).
+The host gcc 15.2 ICEs at -O1 on ff.c: `HOST_OPT=-O0` in the Makefile is
+the workaround.
+
+---
+
+# Handover, 13 September 2026 (afternoon)
+
+(The evening handover between this and the night one - the suspect
+list for the switch that did not connect - is resolved and folded into
+`progress.md`.)
 
 Written at the end of the session that made the core switch work.  It is a
 snapshot: what is on the board right now, what is committed, what is known,
@@ -31,7 +124,13 @@ SD card                /cores/{uknc,pk8000,korvet}.bin  (907 418 bytes each)
                        korvet in it; the next successful install fixes it,
                        or edit it by hand
                        /uknc/ /pk8000/ /korvet/  untouched
-on-board BL616         stock Sipeed firmware, untouched
+on-board BL616         Sipeed's FPGA PARTNER at address 0 since 13 Sep 18:36
+                       ("USB Debugger"; openFPGALoader works); OUR STAGE 2
+                       (onboard/) at 0x40000, the UKNC staged at 0x100000:
+                       on non-PC power the chip loads the UKNC into the
+                       FPGA's SRAM in 1.1 s - SEEN 13 Sep 18:52.  Chip is
+                       FUSED (AES128), 4 MB flash.  Factory image backed up
+                       in bin/onboard/backup/ - onboard.md
 ```
 
 Two loose ends that follow from that:

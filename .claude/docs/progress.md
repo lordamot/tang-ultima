@@ -387,6 +387,161 @@ session should confirm:
 Not worth doing: the flash-to-flash copy engine.  At 20 s an install there
 is nothing to buy with it.
 
+## The on-board BL616, 13 September 2026 - targets prepared, nothing flashed
+
+Asked for: make targets to put the factory firmware back on the board's
+own BL616 and to put upstream's FT2232-emulating firmware on it, as the
+first step towards a firmware there that loads the FPGA's SRAM from the
+card (route D).  Done on the host, none of it run on the board:
+
+- `bin/onboard/` fetched from MiSTle-Dev/FPGA-Companion (commit
+  `49ebb11`, release v1.4.29), sha256 pinned in the Makefile: the factory
+  `friend_20k` plain and encrypted, Sipeed's `bl616_fpga_partner_20kNano`
+  (the FT2232 emulation that starts a second stage at 0x40000), and
+  upstream's `fpga_companion_nano20k` as a known-good second stage.
+- `make onboard-status` (seen: `0403:6010 SIPEED 20K's FRIEND
+  2023030621`), `onboard-backup`, `onboard-efuse`,
+  `flash-mcu-onboard-{orig,orig-encrypted,ftdi,stage2,restore}`;
+  `tools/onboard.sh` refuses a write unless exactly one BL616 is in boot
+  mode and it cannot be the dock; `tools/efuse_bl616.py` decodes
+  `ef_sf_aes_mode` from efuse word 0 (the SDK's `ef_data_reg.h`).
+- The finding that shapes the plan: Sipeed's Partner is encrypted and
+  runs only on a chip with the flash-encryption efuse set (boards from
+  ~2024).  This board's serial string reads as March 2023.  If the fuse
+  is clear, the Partner cannot run and a custom firmware on that chip
+  and the PC-side programmer are mutually exclusive - the FRIEND goes
+  back for every `make flash-image`.  `make onboard-efuse` settles it
+  before anything is written.
+- Recovery: the ISP is in mask ROM, UPDATE-at-power-up always reaches
+  it, nothing here writes efuses, and the FPGA boots from its own flash
+  whatever the BL616 holds.  The table is in `onboard.md`.
+
+Then run, the same evening, all seen on the board (`onboard.md`, "What
+was seen"): the backup reads (1 MB, 2.6 s, a BFNP image of ~82 KB
+matching no upstream file exactly); the efuse reads and says **fused**
+(`EF_CFG_0 = 0x431`, AES128) - the 2023 serial string was no guide; the
+**FPGA Partner was written, verified by the chip's own SHA256, and
+runs**: `SIPEED "USB Debugger"`, and openFPGALoader still detects the
+FPGA through it.  So on this board the programmer and a second-stage
+firmware at 0x40000 can coexist.
+
+## Route D works, 13 September 2026, 18:52
+
+A stage 2 of our own (`onboard/`: bit-banged JTAG on GPIO 10/12/14/16,
+openFPGALoader's Gowin SRAM sequence routine for routine, a core staged
+in the chip's own 4 MB flash behind a descriptor sector, every step
+logged to a flash sector for reading back) was written to 0x40000 and
+the UKNC staged at 0x100000.  On a power bank, with the Korvet in the
+FPGA's flash: the screen went black and came up as the **UKNC**.  The
+log: idcode `0x081b`, status before `DONE_FINAL` (the Korvet had
+configured), erase ok, load ok, `DONE_FINAL` after, **1 145 ms** for
+907 418 bytes.  The FPGA's flash was not touched.  So: **a core can be
+switched into the FPGA's SRAM by the board's own BL616 in about a
+second, with no wires**, which is the instant switch coreswitch.md
+priced at 3-5 days and called sound; it took an evening.
+
+What remains for it to be the switch the OSD offers: the choice has to
+reach the on-board chip and the bitstreams have to reach its flash.
+
+## The OSD-driven switch, 13 September 2026, evening - built, first test failed
+
+Designed and built the same evening (`onboard.md`, "The switch through
+stage 2"): CMD 11 + `mister/coreload.v` in all three cores (lint, build,
+timing all pass), stage 2 v2 as a UART command server, `mnano/coreload.c`
+and the Core form's "Save to flash".  All flashed: stage 2, the dock, the
+new Korvet at flash address 0 (JTAG readback identical), the card.  On
+the power bank, Core -> UKNC sat on "Connecting" and nothing switched.
+Not diagnosed - the host was about to hang.
+
+## The switch works, 13 September 2026, later that evening
+
+**Seen on the board, by the user: Korvet -> PK8000 -> UKNC, each chosen
+from the OSD, each running seconds later; no flash written, no power
+cycle.**  Then, with the diagnostic firmware below, again, "from the
+very first attempt".  That is route D as the OSD's switch, and it is the
+mechanism this repository is for.
+
+How the evening went, because the record is the point:
+
+- The desk-check of the handover's suspects first, all on paper: the
+  BL616's UART pins agree with upstream from two directions
+  (MiSTeryNano's `nano20k/atarist.cst`: `spi_irqn` on 69, an output;
+  FPGA-Companion's `mcu_hw.c`: `SPI_PIN_IRQ = GPIO 13 "in UART RX,
+  crossed"`, `PIN_UART_TX = GPIO 11`); the baud is exact on the BL616
+  (XCLK 40 MHz / 20) and 0.012% off on the Korvet; CMD 11 is CMD 10's
+  lines.  Nothing to find by reading.
+- `make onboard-log` (20:00): START 20260913, FLASH, FLASHSIZE, nothing
+  more - **stage 2 v2 had run and waited**.  Suspect 1 closed.
+- Stage 2 given a link log - `LOG_PINS` (GPIO 13 and 11 read as inputs
+  at start), `LOG_RX`/`LOG_TX` (the first 32 bytes each way, with the
+  ms), later `LOG_READY` and a log that survives its loads - and the
+  dock's `cl_ping()` split into `CL_ERR_CMD11` (the FPGA's FIFO never
+  offers room; the status byte shown) and `CL_ERR_LINK` (room, but no
+  answer).  `make fw` builds, `menu-test` passes.
+- Then the user's test, on the stage 2 with the link log and the dock
+  firmware from the evening before: **the first attempt after power-up
+  failed on "Connecting", every one after it switched** - Korvet ->
+  PK8000 -> UKNC.
+- Then my error: `make flash-mcu` wrote `bin/bl616.bin` - the committed
+  15:26 firmware, the flash-writing design - not `build/fw/bl616.bin`;
+  the flash tool's "Read SHA256/461712" was the old file's size and I
+  did not read it.  The board "regressed" to erasing its flash; the user
+  cut its power mid-install.  Stage 2's log for that power-up: pins
+  `3`, listening from 652 ms, **no byte ever arrived** - consistent, the
+  switch was never asked.  The board came up normally afterwards, so the
+  erase had not begun or the install had finished.  `flash-mcu` now
+  refuses when `build/fw/` is newer than `bin/`, and CLAUDE.md has the
+  trap.
+- The right firmware on the dock (465 392 bytes, SHA `f36077c7...`,
+  21:13), stage 2 v3 at 0x40000 (SHA `4203ed7f...`): **"it now works
+  like it should", and "from the very first attempt"**.
+
+Not explained: the one failed first attempt, seen once on the earlier
+dock firmware and not since.  The likeliest account is a ping before
+the Partner had handed over to stage 2, but that is a guess; the log
+now keeps the first attempt's bytes and times if it comes back.
+
+Not tested under this firmware: **"Save to flash"** (`ultima_install()`,
+the same `flash_install()` that installed the Korvet the evening before,
+byte-verified; but the same function is an argument, not a test), the
+UKNC's serial port after a switch (its `active` mux hands pin 69 back on
+`cl_release()`), and what a switch does to `/sd/ultima.ini` (nothing -
+so the `.ini` names what the flash holds, not what is running).
+
+## The keyboard that goes away, 13 September 2026, night
+
+Reported: the USB keyboard is lost "from time to time" - F12 does
+nothing - and only a power cycle brings it back; the user's guess was
+the keyboard's power saving.  Read, not seen: `usb_host.c` polled
+`/dev/inputN` every 100 ms and deleted the reader thread when the name
+went; CherryUSB kills a detached device's URB without calling its
+callback (`usb_hc_ehci.c`, `usbh_kill_urb`), so a thread blocked on a
+URB with no timeout stays blocked; a device that detaches and
+re-attaches within one poll gets the same name and the poll sees
+nothing.  A keyboard that sleeps and re-attaches on waking is exactly
+that device.  Changed to the stack's own hooks (`usbh_hid_run`/`stop`,
+weak in this SDK's `usbh_hid.c`), a stop flag, a 1 s URB timeout and a
+CLEAR_FEATURE on a stalled endpoint - upstream FPGA-Companion's shape
+since Feb 2026.  Builds here and in all three siblings (the same patch
+applies to each `mnano/usb_host.c`); their CHANGELOGs say so.  **Not
+seen fixed**: the test is the keyboard sleeping and waking under the
+new firmware, and the dock's second LED (lit while a keyboard is
+enumerated) tells this failure from a device that really left.
+
+## The switch on PC power, 13 September 2026, night - left as is
+
+With the Tang on the PC's USB the switch does nothing: the Partner sees
+a host and stays the programmer, stage 2 never runs, and the OSD says
+"Not on PC power?".  That is the Partner's rule, in Sipeed's signed
+image, not ours.  The way round it exists and was priced: upstream's
+`bl616_bootloader_0x20000_nano20k_signed.bin` (FPGA-Companion #170, May
+2026) at address 0 starts whatever is at 0x20000 unconditionally, PC or
+not - at the cost of the Tang's USB-C ceasing to be a programmer until
+`make flash-mcu-onboard-ftdi` puts the Partner back.  **Decided: leave
+it** - the board runs off a charger or a power bank, and the PC-side
+programmer is kept.  If that changes: fetch the bootloader sha-pinned,
+put stage 2 at 0x20000 as well as 0x40000, add the two targets.
+
 ## Defects
 
 1. **RECONFIG_N driven from user logic does not reload this FPGA.**  Not in

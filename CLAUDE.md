@@ -17,37 +17,54 @@ Makefile      builds each core OUT OF its sibling's tree into build/cores/<core>
               gates it with the sibling's own timing check, and packs each to
               bin/<core>.bin - one core a file, no slots
 mnano/        ONE BL616 firmware for all three cores (MiSTeryNano's, merged
-              from the three siblings' copies) plus ultima.c and flashwr.c,
-              the core switch
-tools/        mkimage.py (one .fs -> the bytes the flash holds, checked); the
+              from the three siblings' copies) plus ultima.c, coreload.c (the
+              switch) and flashwr.c ("Save to flash")
+onboard/      stage 2 for the board's OWN BL616: the other end of the switch -
+              takes a core over a UART, keeps it in its flash, loads it into
+              the FPGA's SRAM over JTAG
+tools/        mkimage.py (one .fs -> the bytes the flash holds, checked);
+              mkstage.py (a core in stage 2's form, and the log decoder);
+              onboard.sh and efuse_bl616.py for the board's own BL616; the
               fetched toolchain, hard-linked from a sibling on this host, gitignored
 bin/          uknc.fs pk8000.fs korvet.fs, uknc.bin pk8000.bin korvet.bin,
-              bl616.bin - what a user flashes and what goes on the card
+              bl616.bin - what a user flashes and what goes on the card;
+              onboard/ - the factory and FPGA Partner images for the
+              on-board BL616, fetched from upstream, and its backups
 ```
 
-Started 12 September 2026.  **The switch works on a board**, as of 13
-September: the Korvet was chosen from the OSD, written to the flash from
-the card, read back over JTAG byte-identical, and booted.  It took two
-designs to get there - the first, Gowin MultiBoot, cannot be triggered on
-this board at all - and `.claude/docs/handover.md` is where to start after a
-break, and `.claude/docs/progress.md` is the record of both and must stay
-one.  Still say which claim you are making: "it builds", "it
-lints", "the menu walks on the host" and "it meets timing" are four
-claims, none of them "it works".
+Started 12 September 2026.  **The switch works on a board**, as of the
+evening of 13 September: Korvet -> PK8000 -> UKNC, each chosen from the
+OSD and running seconds later, no flash written, no power cycle.  It took
+three designs to get there - Gowin MultiBoot, which cannot be triggered
+on this board at all; writing the FPGA's flash and power-cycling, which
+works and is kept as "Save to flash"; and the board's own BL616 loading
+the FPGA's SRAM, which is the switch - and `.claude/docs/handover.md` is
+where to start after a break, and `.claude/docs/progress.md` is the
+record of all three and must stay one.  Still say which claim you are
+making: "it builds", "it lints", "the menu walks on the host" and "it
+meets timing" are four claims, none of them "it works".
 
 ## The mechanism, in one paragraph
 
-**Power-up always loads flash address 0, and that is the only lever.**
-The flash holds one bitstream, at address 0, and that is the machine the
-board is.  All three live on the SD card as packed bitstreams,
-`/cores/<name>.bin`.  The OSD's Core form writes the wanted one into
-address 0 - about 20 seconds - and asks for a power cycle:
-`mnano/flashwr.c` composes W25Q64
-commands out of one primitive offered by `mister/flashwr.v` over **SYS CMD
-10** - a 512-byte buffer and "shift TX bytes out, read RX back, CS held" -
-and that module owns MCLK 59, MCS_N 60, MO 61 and MI 62, which
-`-use_mspi_as_gpio` hands to user logic once configuration is done (UG290
-§4.1.2 table 4-2).  `.claude/docs/coreswitch.md` is the whole of it.
+**The board's own BL616 owns the FPGA's JTAG, and JTAG can load the
+FPGA's SRAM.**  Sipeed's FPGA Partner sits at that chip's flash address
+0 and, when the board is not on a PC, starts **our stage 2** (`onboard/`)
+at 0x40000.  The dock's firmware sends the wanted core from the card to
+it - `mnano/coreload.c` over **SYS CMD 11**, `mister/coreload.v` in every
+core: a 2 KB TX FIFO into a 2 Mbaud UART on pin 69, one-byte answers
+back on pin 70 - stage 2 keeps it in its own 4 MB flash at 0x100000
+(`onboard/protocol.h`: B, 4 KB acknowledged chunks, crc; then L), erases
+the FPGA's SRAM and writes the bitstream through the JTAG in 1.1 s, and
+the dock resets itself onto the new machine.  The FPGA's own flash is
+never touched by a switch.  Power-up still loads flash address 0, so the
+Core form's last entry, **"Save to flash"**, writes the running machine
+there - `mnano/flashwr.c` over **SYS CMD 10**, `mister/flashwr.v` on the
+MSPI pins 59-62 that `-use_mspi_as_gpio` hands to user logic - and that
+is what survives a power cycle.  `.claude/docs/onboard.md` is the
+account of the chip and the switch, `coreswitch.md` of the flash writer
+and the routes that were weighed.  **The switch only exists on non-PC
+power**: on a PC the Partner stays the programmer and stage 2 never
+runs, and the OSD says "Not on PC power?".
 
 **Why not MultiBoot:** the jump address can be put in every header, but
 the trigger does not exist.  A low pulse on RECONFIG_N should reload the
@@ -76,7 +93,8 @@ it is still in the three cores.
   generic feature: `mister/flashwr.v` and sysctrl's **CMD 10**, the four
   MSPI pins with `"MSPI" : true` in the process config, the `--abs`
   option of `gowin_tcl.py`, the PnR-dir argument of `timing_check.py`,
-  and the now-dormant CMD 9 / `reconfig_n` on pin 48.
+  `mister/coreload.v` and **CMD 11** on pins 69/70, and the now-dormant
+  CMD 9 / `reconfig_n` on pin 48.
 - **openFPGALoader is needed once.**  `make flash-image` writes
   `bin/$(DEFAULT_CORE).bin` to address 0 (`--file-type bin -o 0`);
   replug, flash, power-cycle, in that order.  After that the board
@@ -84,23 +102,31 @@ it is still in the three cores.
   recovery.  The packed `.bin` is byte-identical to Gowin's own (checked
   against `impl/pnr/*.bin`), and `--file-type bin -o 0` is **verified**
   to write correctly - read back over JTAG and compared, 13 Sep 2026.
-- **The card and the flash share the m0s link.**  A sector request
-  arriving in the middle of a page program is a transaction that never
-  completes, so `ultima_switch()` closes every image before it starts.
-  `sys_irq_hold` and `sdc_reattach` survive from the MultiBoot design and
-  are no longer used by the switch - the link never dies now, because the
-  FPGA never reloads while the firmware is running.
-- **A switch is not a reconfiguration.**  `ultima_switch()` writes the
-  flash and returns; the running machine does not change and the OSD says
-  to power-cycle.  `ultima_boot()` no longer walks anything - it reports
-  which machine came up, makes its card directory, and warns if
-  `/sd/ultima.ini` names a different core, which means an install did not
-  finish or the card came off another board.
+- **`make flash-mcu` writes `bin/bl616.bin`, not `build/fw/bl616.bin`.**
+  `make fw` leaves the firmware in `build/fw/` and it is copied to
+  `bin/` by hand.  On 13 Sep 2026 the stale `bin/` copy went onto the
+  dock and the board "regressed" to writing its flash; the target now
+  refuses when `build/fw/` is newer.  And it writes whatever BL616 is
+  on `/dev/ttyACM0` - with the Tang in boot mode that is the board's
+  own chip, so the Tang is unplugged first.
+- **A switch ends in `sys_reset_mcu()`.**  `ultima_switch()` pings,
+  sends, says load, and the dock restarts on the new machine; the card,
+  every image and the link are gone with the old one, so it closes every
+  image first and holds the interrupt task (`sys_irq_hold`) before the
+  load.  It never writes the FPGA's flash; `ultima_install()` ("Save to
+  flash") does, and that is the one that must not be interrupted.
+  `ultima_boot()` reports which machine came up, makes its card
+  directory, and warns if `/sd/ultima.ini` names a different core.
+- **Stage 2 is blind and its log is the only witness.**  Nothing it does
+  is visible from a PC, so it writes (tag, value) pairs into its flash
+  at 0x0FE000 - every step of a load, the first 32 bytes each way on
+  the link, when it started listening - and `make onboard-log` (UPDATE
+  held) reads them back.  One power-up is one log.
 - **SYS CMD 6 means three things.**  RTC read on the UKNC, RAM poke on
   the PK8000 and Korvet; `spi.h` defines `SPI_SYS_RTC` and
   `SPI_SYS_POKE` both as 6, and the firmware only sends each to its own
-  core.  CMD 9 and CMD 10 are the only commands that are the same on all
-  three.
+  core.  CMD 9, 10 and 11 are the only commands that are the same on
+  all three.
 - **One firmware, three menus, one `core_id`.**  Everything the firmware
   selects by core is indexed by `core_id` (5 UKNC, 7 PK8000, 8 Korvet):
   `keymap[]`/`modifier[]` (usb_host.c), `settings_file_name()`,
@@ -116,7 +142,19 @@ it is still in the three cores.
   browser's root, the `.ini` sits there, `extrom/` and `RT11SAV` too
   (`extrom.h`, `rt11sav.h`).  Only `/sd/ultima.ini` and `/sd/cores/` are
   in the root - and without `/sd/cores/<name>.bin` there is no switch at
-  all, just an OSD saying the file is missing (`make card`).
+  all, just an OSD saying the file is missing (`make card`).  A switch
+  does not touch `ultima.ini`; "Save to flash" does.
+- **The on-board BL616 is the board's only PC-side programmer.**  The
+  `flash-mcu-onboard-*` targets overwrite its firmware; `make
+  onboard-backup` and `make onboard-efuse` come first, always, and
+  `.claude/docs/onboard.md` is the account and the recovery plan.  Its
+  ISP is in mask ROM, so the chip cannot be bricked from its flash, but
+  an unfused chip (this board, probably - early 2023) cannot run
+  Sipeed's FPGA Partner.  This board IS fused: the Partner is at 0 and
+  our stage 2 (`onboard/`) at 0x40000, and the two coexist -
+  openFPGALoader works on a PC, the switch works off one.
+  `onboard/protocol.h` and `mnano/coreload_proto.h` are the same file
+  by hand, as are the three `mister/coreload.v`.
 - **`prompts/` is a transcript, not context.**  Never read it at the
   start of a session; append every exchange as it finishes, in the form
   `.claude/rules/guideline.md` gives.

@@ -34,6 +34,7 @@
 
 #include "ultima.h"
 #include "flashwr.h"
+#include "coreload.h"
 #include "sysctrl.h"
 #include "sdc.h"
 
@@ -104,8 +105,8 @@ static void ultima_set_wanted(const ultima_core_t *c) {
   FIL fil;
   sdc_lock();
   if(f_open(&fil, ULTIMA_INI, FA_WRITE | FA_CREATE_ALWAYS) == FR_OK) {
-    f_puts("; Tang Ultima - the core installed in the flash, written by\n", &fil);
-    f_puts("; the OSD's Core form.  Power-up loads whatever is at flash\n", &fil);
+    f_puts("; Tang Ultima - the core saved in the flash, written by the\n", &fil);
+    f_puts("; OSD's Core form.  Power-up loads whatever is at flash\n", &fil);
     f_puts("; address 0; this only records which one that is.\n", &fil);
     f_puts("core=", &fil);
     f_puts(c->dir, &fil);
@@ -130,6 +131,7 @@ static void ultima_mkdir(void) {
 // Here rather than in flashwr.c so that the host menu test, which links
 // ultima.c but has no SPI link to give flashwr.c, still has the strings.
 const char *flash_strerror(int err) {
+  if(err <= -20) return cl_strerror(err);
   switch(err) {
   case 0:                return "ok";
   case FLASH_ERR_BUS:    return "no flash on the MSPI pins";
@@ -143,6 +145,8 @@ const char *flash_strerror(int err) {
   default:               return "unknown error";
   }
 }
+
+const char *ultima_strerror(int err) { return flash_strerror(err); }
 
 void ultima_boot(spi_t *spi) {
   unsigned char want = ultima_wanted();
@@ -162,14 +166,12 @@ void ultima_boot(spi_t *spi) {
   flash_probe(spi);
 #endif
 
-  // Nothing is reconfigured here - there is no way to, and that is the
-  // whole point of the design.  But a disagreement is worth saying: it
-  // means an install did not finish, or this card came off another board.
-  if(want && want != core_id) {
+  // The card records what "Save to flash" last put at address 0; the
+  // running machine may be another, loaded into the SRAM by a switch,
+  // and that is normal now.
+  if(want) {
     const ultima_core_t *c = ultima_core(want);
-    printf("Tang Ultima: the card says %s is installed, but %s is running -\r\n",
-	   c ? c->name : "another core", running ? running->name : "something else");
-    printf("Tang Ultima: install it again from the OSD's Core form\r\n");
+    printf("Tang Ultima: the flash holds %s\r\n", c ? c->name : "?");
   }
   ultima_mkdir();
 }
@@ -178,10 +180,55 @@ void ultima_boot(spi_t *spi) {
 
 int ultima_switch(spi_t *spi, unsigned char id, flash_progress_t cb) {
   const ultima_core_t *c = ultima_core(id);
-  if(!c) return FLASH_ERR_OPEN;
+  if(!c) return CL_ERR_OPEN;
   if(id == core_id) return 0;
 
-  printf("Tang Ultima: installing %s from %s\r\n", c->name, ultima_core_path(c));
+  printf("Tang Ultima: switching to %s from %s\r\n", c->name, ultima_core_path(c));
+
+  // Nothing must be asked of the images from here on: the FPGA is about
+  // to be replaced, and a sector request to a machine that is being
+  // erased is a transaction that never completes.
+  for(int d=0;d<MAX_DRIVES;d++) sdc_image_open(d, NULL);
+
+  int r = cl_ping(spi);
+  if(r) {
+    printf("Tang Ultima: %s\r\n", cl_strerror(r));
+    cl_release(spi);
+    return r;
+  }
+  r = cl_send(spi, ultima_core_path(c), c->dir, cb);
+  if(r) {
+    printf("Tang Ultima: %s not sent: %s\r\n", c->name, cl_strerror(r));
+    cl_release(spi);
+    return r;
+  }
+
+  // From here the link is not to be trusted: the FPGA goes blank a moment
+  // after stage 2 says yes, and what it shows on the interrupt line and
+  // MISO until the next machine is up is not a request.  So the interrupt
+  // task is held first, and the answer to the load is the last thing
+  // read.  No answer at all is taken as "it happened", since a lost byte
+  // is likelier than a stage 2 that stopped in the middle of saying so.
+  if(cb) cb(CL_STAGE_LOAD, 0, 0);
+  sys_irq_hold = 1;
+  r = cl_load(spi);
+  if(r == CL_ERR_REFUSED) {
+    sys_irq_hold = 0;
+    cl_release(spi);
+    printf("Tang Ultima: %s not loaded: %s\r\n", c->name, cl_strerror(r));
+    return r;
+  }
+  printf("Tang Ultima: %s is loading - restarting the MCU\r\n", c->name);
+  vTaskDelay(pdMS_TO_TICKS(300));
+  sys_reset_mcu();
+  for(;;) vTaskDelay(pdMS_TO_TICKS(100));
+}
+
+int ultima_install(spi_t *spi, flash_progress_t cb) {
+  const ultima_core_t *c = ultima_core(core_id);
+  if(!c) return FLASH_ERR_OPEN;
+
+  printf("Tang Ultima: saving %s to the flash from %s\r\n", c->name, ultima_core_path(c));
 
   // Nothing must be asked of the images while the flash is being written:
   // the card and the flash share the m0s link, and a sector request in
@@ -191,23 +238,34 @@ int ultima_switch(spi_t *spi, unsigned char id, flash_progress_t cb) {
   int r = flash_install(spi, ultima_core_path(c), cb);
   if(r == 0) {
     ultima_set_wanted(c);
-    printf("Tang Ultima: %s is in the flash - power-cycle the board\r\n", c->name);
+    printf("Tang Ultima: %s is in the flash - it is what power-up loads\r\n", c->name);
   } else
-    printf("Tang Ultima: %s not installed: %s\r\n", c->name, flash_strerror(r));
+    printf("Tang Ultima: %s not saved: %s\r\n", c->name, flash_strerror(r));
   return r;
 }
 
 #else  // the host test (menu_test.c): the switch is recorded, not made
 
 unsigned char ultima_test_switched = 0;
+unsigned char ultima_test_installed = 0;
 
 int ultima_switch(spi_t *spi, unsigned char id, flash_progress_t cb) {
   (void)spi; (void)cb;
-  if(ultima_core(id) && id != core_id) {
-    ultima_set_wanted(ultima_core(id));
+  if(ultima_core(id) && id != core_id)
     ultima_test_switched = id;
+  return 0;
+}
+
+int ultima_install(spi_t *spi, flash_progress_t cb) {
+  (void)spi; (void)cb;
+  if(ultima_core(core_id)) {
+    ultima_set_wanted(ultima_core(core_id));
+    ultima_test_installed = core_id;
   }
   return 0;
 }
+
+const char *cl_strerror(int err) { (void)err; return "coreload"; }
+void cl_release(spi_t *spi) { (void)spi; }
 
 #endif

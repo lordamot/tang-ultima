@@ -23,9 +23,13 @@
                               // does not reload this FPGA (docs/progress.md); kept because a
                               // wire from pin 48 to TP1 would make it work
 #define SPI_SYS_FLASH    10   // all three: the configuration flash, through flashwr.v - a
-                              // sub-command, then its bytes (flashwr.c).  This is how a core
-                              // switch happens: the wanted machine is written to flash
-                              // address 0 and the board is power-cycled into it.
+                              // sub-command, then its bytes (flashwr.c).  "Save to flash":
+                              // the running machine is written to flash address 0, which
+                              // is what power-up loads.
+#define SPI_SYS_CORELOAD 11   // all three: the UART to the board's own BL616, through
+                              // coreload.v - a sub-command, then its bytes (coreload.c).
+                              // This is how a core switch happens: the wanted machine is
+                              // sent to that chip and it loads the FPGA's SRAM over JTAG.
 
 #define SPI_TARGET_HID    1   // human interface devices
 #define SPI_HID_STATUS    0

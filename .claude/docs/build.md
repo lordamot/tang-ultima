@@ -28,6 +28,11 @@ make flash-core-<c>  any single core -> address 0 (the same write, another file)
 make flash-mcu     the BL616 over UART (COMX=/dev/ttyACM0)
 ```
 
+The board's own BL616 - the USB programmer, a different chip - has its
+own set: `onboard-status`, `onboard-fetch`, `onboard-backup`,
+`onboard-efuse`, `flash-mcu-onboard-{orig,orig-encrypted,ftdi,stage2,restore}`.
+`.claude/docs/onboard.md` before any of them.
+
 ## A core
 
 `make core-korvet` runs `../tang-korvet/tools/gowin_tcl.py --abs` into

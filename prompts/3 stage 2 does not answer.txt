@@ -1,0 +1,150 @@
+lets continue
+
+***
+
+Picked up from handover.md: the OSD-driven switch (route D through stage 2)
+is built and its first test stuck on "Connecting".  Nothing can be run on
+the board from here, so the suspect list was desk-checked first:
+
+- Suspect 2, the BL616 UART pins: CLOSED on paper.  Upstream's own files
+  agree with onboard/link.h from two independent directions - MiSTeryNano's
+  src/tang/nano20k/atarist.cst puts spi_irqn (an FPGA output, "USB-C UART TX
+  output") on pin 69 and uart_rx on 70, and FPGA-Companion's mcu_hw.c for
+  TANG_NANO20K has SPI_PIN_IRQ = GPIO 13 "in UART RX, crossed" and
+  PIN_UART_TX = GPIO 11.  So 69 -> GPIO 13 (BL616 RX), GPIO 11 -> 70.
+  The SDK's bflb_gpio_uart_init routes any BL616 pad through the sig mux
+  (sig = pin % 12: 11 and 1, no clash with the console's 21/22 = 9/10),
+  and the QFN40 pad check accepts 10..17.  uart1 is in the device table.
+- Suspect 5, baud: exact on the BL616 (UART clock XCLK 40 MHz / 20);
+  0.012% off on the Korvet (INC 3236 from 40.5 MHz).  Not it.
+- Suspect 3, CMD 11: sysctrl.v's gate, first, and data_out tracking are
+  the same lines as CMD 10's, in all three cores; coreload.v answers the
+  way flashwr.v does; TX/RX are 8N1 LSB-first, idle high.  Nothing found
+  by reading - but reading is how the last two designs looked right.
+- Upstream never used GPIO 13 as a UART RX (only as a GPIO interrupt) and
+  its console on GPIO 11 is the "wo" write-only UART, not uart1; so the
+  uart1 routing on those pads is the one thing with no precedent.
+
+What is left needs the board.  Proposed, in order:
+1. make onboard-log (board on the PC, UPDATE held).  v2 logs START
+   (0x20260913), FLASH, FLASHSIZE at boot and nothing else until a load;
+   the old v1 record still there means stage 2 v2 never ran at all.
+2. Make the failure tell which side is silent: cl_ping() returns the same
+   0 for "the FPGA never showed room" (CMD 11 broken) and "no reply"
+   (stage 2 silent); splitting that, and showing the raw status byte on
+   the Switch FAILED screen, is a small firmware change and one
+   make flash-mcu.
+
+tang connected with boot held
+
+***
+
+make onboard-log: START 20260913, FLASH, FLASHSIZE - and nothing more.
+Stage 2 v2 RAN on the power bank and sat waiting; suspect 1 closed.  It
+never got as far as a load, so either 'P' never reached GPIO 13 or the
+answer never reached the FPGA's count.
+
+Done while the board was in boot mode:
+- stage 2 now logs the link: LOG_PINS (GPIO 13 / 11 read as plain inputs
+  at start - the FPGA's TX idles high if 13 is the pin), LOG_RX and LOG_TX
+  (the first 32 bytes each way, with ms since start).  stage.h, main.c,
+  mkstage.py --log decode them.  Built and written to 0x40000, SHA
+  57a58133... verified.
+- dock: cl_ping() now returns CL_ERR_CMD11 when the FPGA's FIFO never
+  offers room (status byte shown: "CMD 11: FIFO never has room (st xx)")
+  and CL_ERR_LINK when it does and nothing comes back ("no answer from
+  stage 2 (st xx)"); the failure screen says "The FPGA side is dead" for
+  the first.  make fw builds, menu-test passes.  NOT flashed: make
+  flash-mcu writes /dev/ttyACM0, and right now that is the on-board chip.
+
+Next: unplug the Tang; power bank; F12 -> Core -> UKNC; note the FAILED
+text; back on the PC with UPDATE held; make onboard-log.  Then the dock
+in boot mode (Tang unplugged) for make flash-mcu.
+
+update! only first connecting fails with no result, others works well - I
+was able to switch korvet - pk8000 - uknc
+[...]
+for p.1 - I did what you asked. others - instruct me - I'll connect
+one-by-one, suggest starting with dock in boot mode
+dock connected / tang with update connected
+looks like a regression - it now erases and flashes. and so - no results
+seems till the power reboot
+saving with erasing cycle. i did not power cycle it because it is
+regression of what we need to have
+ir was almost working as intended - except very first try; and then fix
+fall it back to flashing fpga again
+dock connected
+it now works like it should
+it worked from the very first attempt [save on flash option not tested]
+
+***
+
+The switch works on the board: Korvet -> PK8000 -> UKNC from the OSD,
+no flash written, no power cycle; first on the evening-before dock
+firmware (one failed first attempt, then every one), then on the
+diagnostic firmware from the very first attempt.
+
+The "regression" was mine: make flash-mcu writes bin/bl616.bin, the
+committed 15:26 flash-writing firmware, not build/fw/bl616.bin - the
+tool's "Read SHA256/461712" was the old file's size.  Stage 2's log for
+that power-up (pins 3, listening from 652 ms, no byte) agrees: the
+switch was never asked.  The board booted normally afterwards.  Fixed:
+bin/bl616.bin = the build, flash-mcu refuses when build/fw/ is newer,
+CLAUDE.md has the trap.  Stage 2 v3 (log survives loads, LOG_READY) at
+0x40000; dock firmware f36077c7... at 21:13.
+
+Docs: CLAUDE.md's mechanism paragraph and traps rewritten for the stage 2
+switch; progress.md "The switch works"; handover.md's night section;
+onboard.md's switch section; CHANGELOG.  Not tested: "Save to flash"
+under this firmware, the one failed first attempt (unexplained, log now
+keeps it), the UKNC's serial after cl_release, switch duration.  Nothing
+committed.
+
+try check one more problem - it looses keyboard connected from time to time
+F12 does not work. it comes back if power cycle. energy saving on usb
+keyboard not supported maybe?
+fix please, and in all siblings also
+
+***
+
+Read, not seen: usb_host.c polled /dev/inputN every 100 ms and deleted
+the reader thread when the name went; CherryUSB kills a detached
+device's URB without its callback, so a thread blocked on a URB with no
+timeout stays blocked; a keyboard that detaches and re-attaches within
+one poll (a sleeping keyboard waking) gets the same name, the poll sees
+nothing, the thread is dead for ever, LED still on.  Upstream moved to
+the stack's hooks in Feb 2026.
+
+Changed mnano/usb_host.c to that shape: usbh_hid_run/usbh_hid_stop
+(weak in this SDK's usbh_hid.c), a stop flag, a 1 s URB timeout, a
+CLEAR_FEATURE on a stalled endpoint, the thread deletes itself, stop
+waits for it.  Builds; the same patch applied to all three siblings'
+mnano/usb_host.c, each builds; CHANGELOGs in all four.  bin/bl616.bin
+= the new build (465 936 bytes).  Not seen fixed: the test is the
+keyboard sleeping and waking; the dock's second LED tells this failure
+from a device that really left.
+
+companion connected in boot mode / usb keyboard does not work at all now
+
+***
+
+Flashed a68b0283...; the keyboard was dead from boot.  Mine: in this
+SDK a URB the timeout kills keeps errorcode = -USB_ERR_BUSY and the next
+usbh_submit_urb() refuses it out of hand (usb_hc_ehci.c:1149), so after
+the first idle second the thread looped on BUSY for ever.  Cleared before
+each submit, in all four usb_host.c; all four build; bin/bl616.bin =
+465 952 bytes.  Dock to reflash.
+
+dock connected / now regression again - keyboard works but switch between
+cores does nothing / is it because tang connected to pc? it needs working
+in this connection also / reasonable, lets leave as is now
+
+***
+
+Flashed 59d9b9da... - keyboard works from boot.  The switch "doing
+nothing" is the Tang on the PC: the Partner sees a host, stays the
+programmer, stage 2 never runs ("Not on PC power?").  Priced the way
+round: upstream's bl616_bootloader_0x20000_nano20k_signed.bin (#170)
+starts 0x20000 unconditionally at the cost of the USB-C programmer until
+flash-mcu-onboard-ftdi.  Decided: leave as is.  Recorded in progress.md
+and handover.md.  Open: whether the keyboard survives its sleep.

@@ -1,0 +1,74 @@
+ok, lets continue. I need you to prepare make commands to reflash tang's onboard bl616!
+make flash-mcu-onboard-orig - restore original firmware
+make flash-mcu-onboard-ftdi - take from mistery nano upstream (see below)
+
+what need to achieve: we need custom firmware so later we will be able to boot tang fpga sdram and bitstream comes from SD - controllable from companion board
+
+prepare recovery plan also for a case when everything goes wrong
+
+***
+
+Prepared, on the host; nothing flashed.  The board is on the bus right now
+as 0403:6010 SIPEED "20K's FRIEND", serial 2023030621 - the factory
+firmware, and an early board.
+
+Upstream (MiSTle-Dev/FPGA-Companion, successor of the MiSTeryNano firmware)
+ships the factory friend_20k image in a plain and an encrypted variant, and
+Sipeed's bl616_fpga_partner_20kNano.bin - the FT2232 emulation that also
+starts a second firmware at flash 0x40000 when no PC is attached.  That
+Partner is the "ftdi" target.  Catch: it is encrypted and runs only on a
+chip whose flash-encryption efuse Sipeed set (boards from ~2024); on an
+unfused chip it never starts and a custom firmware and the PC-side
+programmer are mutually exclusive.  Upstream says the fuse cannot be read
+beforehand; it can - ef_sf_aes_mode, efuse word 0 bits [1:0] in the SDK's
+ef_data_reg.h, and BLFlashCommand --efuse --read.
+
+Makefile: onboard-status, onboard-fetch (bin/onboard/, sha256 pinned to
+commit 49ebb11 / release v1.4.29), onboard-backup (first 1 MB of the chip
+-> bin/onboard/backup/), onboard-efuse (decoded by tools/efuse_bl616.py),
+flash-mcu-onboard-orig / -orig-encrypted / -ftdi / -stage2 (STAGE2=<file>
+at 0x40000) / -restore BACKUP=<file>.  tools/onboard.sh refuses a write
+unless exactly one BL616 is in boot mode and it cannot be the dock; every
+image is checked for the BFNP/FCFG header first.
+
+Recovery, in .claude/docs/onboard.md: the ISP is in the BL616's mask ROM
+and UPDATE-at-power-up always reaches it; nothing writes efuses; the FPGA
+boots from its own flash whatever the BL616 holds.  Stays "Bouffalo CDC
+DEMO" after a flash = wrong variant, flash the backup or the other
+variant.  Chip really dead = program the FPGA through TP3..TP6 with any
+openFPGALoader cable; the OSD install from the card still works.
+
+Order: onboard-status (seen), onboard-backup, onboard-efuse, then ftdi
+only if fused.  Checked here: the targets dry-run, fetch works, status
+works, the refusals fire, the decoder decodes; the flash reads and writes
+are untried on the board.  Docs: onboard.md new; CLAUDE.md, build.md,
+handover.md, progress.md, CHANGELOG.md touched.  Not committed.
+
+***
+[continued: "lets flash new onboard firmware, and make it not touch fuses"]
+
+Board in boot mode by hand.  onboard-backup: 1 MB in 2.6 s, an ~82 KB
+BFNP image, no upstream file matches it exactly.  onboard-efuse:
+EF_CFG_0 = 0x431, ef_sf_aes_mode = 1 - FUSED, the 2023 serial string
+meant nothing.  flash-mcu-onboard-ftdi: written, SHA verified by the
+chip; after a replug "SIPEED USB Debugger", openFPGALoader detects the
+FPGA.  Then a stage 2 of our own, onboard/ (bit-banged JTAG on GPIO
+10/12/14/16, openFPGALoader's Gowin SRAM sequence, a core staged in the
+chip's flash at 0x100000 behind a descriptor, a log sector), at 0x40000,
+UKNC staged.  On a power bank: black, then the UKNC.  Log: idcode 081b,
+erase ok, DONE_FINAL, 1145 ms.  Route D works, no wires.  Nothing touched
+the efuses.  Not committed.
+
+***
+[continued: "lets proceed further then" - OSD switch through stage 2]
+
+Built the whole path: mister/coreload.v (SYS CMD 11, 2 KB TX FIFO, 2 Mbaud
+UART on 69/70, one-byte status/last - a chain simulation showed a
+pointer-style read duplicates byte 0) in all three cores, lint/build/timing
+ok; stage 2 v2 as a UART command server (onboard/protocol.h); dock side
+mnano/coreload.c, ultima_switch = ping/send/load/reset, "Save to flash" =
+the old writer; menu-test passes.  Flashed stage 2, the dock, the new
+Korvet (JTAG readback identical), the card.  Test on the power bank:
+"Connecting" hung, the Korvet stayed.  Not diagnosed; handover.md has the
+suspects, starting with make onboard-log.  Host gcc ICE at -O1: HOST_OPT=-O0.
+Nothing committed anywhere.

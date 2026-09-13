@@ -41,6 +41,7 @@
 
 unsigned char core_id = CORE_ID_UKNC;
 extern unsigned char ultima_test_switched;   // ultima.c, the host half
+extern unsigned char ultima_test_installed;
 
 //------------------------------------------------------------------------
 // stubs
@@ -312,7 +313,7 @@ static void check_core_form(menu_t *menu, int core_form) {
   CHECK(!strcmp(menu->forms[core_form], core_form_ultima_text()), "form %d is not the Core form", core_form);
   goto_entry(menu, n);
   menu_do(menu, MENU_EVENT_SELECT);
-  CHECK(menu->form == core_form && menu->entries == 4, "Core form: form %d, %d entries", menu->form, menu->entries);
+  CHECK(menu->form == core_form && menu->entries == 5, "Core form: form %d, %d entries", menu->form, menu->entries);
   shot("core");
 
   // the running core is one of the three, and selecting it does nothing
@@ -339,9 +340,17 @@ static void check_core_form(menu_t *menu, int core_form) {
   CHECK(ultima_test_switched == field_int(e, 2), "selecting core %d switched to %02x", field_int(e, 2), ultima_test_switched);
   shot("core-switch");
 
-  // the id on every entry is a core in the ring
+  // the id on every machine entry is a core
   for(int i=1;i<=3;i++)
     CHECK(ultima_core(field_int(entry_at(menu->forms[core_form], i), 2)) != NULL, "Core entry %d names no core", i);
+
+  // the fourth is "Save to flash", id 0, and selecting it saves the running core
+  CHECK(field_int(entry_at(menu->forms[core_form], 4), 2) == 0, "Core entry 4 is not the save entry");
+  goto_entry(menu, 4);
+  ultima_test_installed = 0;
+  menu_do(menu, MENU_EVENT_SELECT);
+  CHECK(ultima_test_installed == core_id, "Save to flash saved %02x, running %02x", ultima_test_installed, core_id);
+  shot("core-save");
 
   // and back
   while(menu->entry) menu_do(menu, MENU_EVENT_UP);

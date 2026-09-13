@@ -12,6 +12,7 @@
 #include "rt11sav.h"
 #include "bas.h"
 #include "ultima.h"
+#include "coreload.h"
 #include "menu.h"
 #include "sysctrl.h"
 
@@ -83,16 +84,20 @@ menu_variable_t variables_agat9[] = {
 // ------------------------------------------------------------------
 // One form on every core's main menu, the same text on all three: a 'C'
 // entry a machine, its option field the core id (sysctrl.h).  Selecting
-// the one that is running does nothing; any other writes the wish to
-// /sd/ultima.ini and hands the FPGA over (ultima.c).  The running one
-// is drawn with a mark.  The title's parent is form 0 on every core and
-// the entry number is found by form number, as everywhere here.
+// the one that is running does nothing; any other is sent from the card
+// to the board's own BL616, which loads it into the FPGA's SRAM, and the
+// MCU restarts on the new machine (ultima.c).  The running one is drawn
+// with a mark.  The last entry, id 0, writes the running machine into
+// the FPGA's flash - what power-up loads.  The title's parent is form 0
+// on every core and the entry number is found by form number, as
+// everywhere here.
 static const char core_form_ultima[] =
   "Core,0|1;"
   // --------
   "C,UKNC,5;"                           // МС0511 УКНЦ
   "C,PK8000,7;"                         // ПК8000 Сура
-  "C,Korvet,8;";                        // ПК8020 Корвет
+  "C,Korvet,8;"                         // ПК8020 Корвет
+  "C,Save to flash,0;";                 // the running one -> flash address 0
 
 // the form's text, for the host test to know it is on every core
 const char *core_form_ultima_text(void) { return core_form_ultima; }
@@ -1829,22 +1834,26 @@ static void menu_step_value(menu_t *menu, const char *s, int step) {
 // ------------------------------------------------------------------
 static menu_t    *install_menu = NULL;
 static const char *install_name = "";
+static int         install_to_flash = 0;   // "Save to flash", not a switch
 
+// the stages: flashwr.h's four, then coreload.h's three
 static void menu_install_draw(int stage, int done, int total) {
-  static const char *what[4] = { "Checking", "Erasing", "Writing", "Verifying" };
+  static const char *what[8] = { "Checking", "Erasing", "Writing", "Verifying",
+                                 "Connecting", "Sending", "Loading", "" };
   char l1[40], l2[40];
 
   if(!install_menu) return;
-  snprintf(l1, sizeof(l1), "Installing %s", install_name);
-  if(total > 0) snprintf(l2, sizeof(l2), "%s %d%%", what[stage & 3],
+  snprintf(l1, sizeof(l1), "%s %s", install_to_flash ? "Saving" : "Switching to", install_name);
+  if(total > 0) snprintf(l2, sizeof(l2), "%s %d%%", what[stage & 7],
                          (int)((done * 100L) / total));
-  else          snprintf(l2, sizeof(l2), "%s ...", what[stage & 3]);
+  else          snprintf(l2, sizeof(l2), "%s ...", what[stage & 7]);
 
   u8g2_ClearBuffer(MENU2U8G2(install_menu));
   menu_draw_title(install_menu, "Core,;");
   u8g2_DrawStr(MENU2U8G2(install_menu), 1, 13 + 12 * 1, l1);
   u8g2_DrawStr(MENU2U8G2(install_menu), 1, 13 + 12 * 2, l2);
-  u8g2_DrawStr(MENU2U8G2(install_menu), 1, 13 + 12 * 3, "Do not switch off!");
+  if(install_to_flash)
+    u8g2_DrawStr(MENU2U8G2(install_menu), 1, 13 + 12 * 3, "Do not switch off!");
   u8g2_SendBuffer(MENU2U8G2(install_menu));
 }
 
@@ -1854,16 +1863,23 @@ static void menu_install_result(menu_t *menu, const char *name, int r) {
   u8g2_ClearBuffer(MENU2U8G2(menu));
   menu_draw_title(menu, "Core,;");
   if(r == 0) {
-    snprintf(l1, sizeof(l1), "%s installed", name);
+    snprintf(l1, sizeof(l1), "%s %s", name, install_to_flash ? "saved" : "loaded");
     u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 1, l1);
-    u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 2, "Power-cycle the board");
+    if(install_to_flash)
+      u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 2, "It is what power-up loads");
   } else {
-    u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 1, "Install FAILED");
-    u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 2, flash_strerror(r));
+    u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 1, install_to_flash ? "Save FAILED" : "Switch FAILED");
+    u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 2, ultima_strerror(r));
     // past the erase there is no bitstream at address 0 any more, so
     // powering off now is a board that needs openFPGALoader
     if(r == FLASH_ERR_ERASE || r == FLASH_ERR_WRITE || r == FLASH_ERR_VERIFY)
       u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 3, "Do NOT switch off - retry");
+    // a switch that could not even talk to the chip: the board is on a
+    // PC, where the Partner keeps it as the programmer
+    if(r == CL_ERR_LINK)
+      u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 3, "Not on PC power?");
+    if(r == CL_ERR_CMD11)
+      u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 3, "The FPGA side is dead");
   }
   u8g2_SendBuffer(MENU2U8G2(menu));
 }
@@ -1918,18 +1934,22 @@ static void menu_select(menu_t *menu) {
   } break;
 
   case 'C': {
-    // Tang Ultima: another machine.  The running one is a no-op; any
-    // other is written from the card into flash address 0, which takes
-    // some seconds and must not be interrupted, and only a power cycle
-    // makes it the running machine - nothing can reload this FPGA from
-    // software (ultima.c).
+    // Tang Ultima.  Id 0 is "Save to flash": the running machine is
+    // written from the card into flash address 0, which takes some
+    // seconds and must not be interrupted (ultima_install).  Any other
+    // id is a machine: the running one is a no-op, another is sent to
+    // the board's BL616 and loaded into the FPGA's SRAM, and on success
+    // this MCU restarts on it, so ultima_switch() only returns to say
+    // why not.
     unsigned char id = menu_get_int(menu, s, MENU_ENTRY_INDEX_OPTIONS);
-    const ultima_core_t *c = ultima_core(id);
-    if(c && id != core_id) {
+    const ultima_core_t *c = ultima_core(id ? id : core_id);
+    if(c && (id == 0 || id != core_id)) {
       install_menu = menu;
       install_name = c->name;
-      menu_install_draw(FLASH_STAGE_CHECK, 0, 0);
-      int r = ultima_switch(menu->osd->spi, id, menu_install_draw);
+      install_to_flash = (id == 0);
+      menu_install_draw(install_to_flash ? FLASH_STAGE_CHECK : CL_STAGE_CONNECT, 0, 0);
+      int r = install_to_flash ? ultima_install(menu->osd->spi, menu_install_draw)
+                               : ultima_switch(menu->osd->spi, id, menu_install_draw);
       menu_install_result(menu, c->name, r);
       install_menu = NULL;
     }

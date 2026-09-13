@@ -6,4 +6,5 @@
 /tools/
 /build/
 /mnano/build/
+/onboard/build/
 __pycache__/
