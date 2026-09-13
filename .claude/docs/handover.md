@@ -74,16 +74,25 @@ switch on PC power".
 - Every `flash-mcu*` target writes whatever BL616 is `/dev/ttyACM0`.
   The dock and the Tang each go on the PC alone.
 
-## Nothing is committed
+## What is committed
 
-In any of the four repositories.  Changed: tang-ultima (Makefile,
-tools/{onboard.sh,efuse_bl616.py,mkstage.py}, onboard/,
-mnano/{coreload.c,coreload.h,coreload_proto.h,ultima.c,ultima.h,menu.c,
-menu_test.c,spi.h,CMakeLists.txt}, bin/{onboard/,*.bin,*.fs}, docs,
-CHANGELOG, CLAUDE.md, .gitignore) and each sibling
-(tang/src/mister/{coreload.v,sysctrl.v}, tang/src/top.v, tang/*.gprj).
-The host gcc 15.2 ICEs at -O1 on ff.c: `HOST_OPT=-O0` in the Makefile is
-the workaround.
+Four repositories, all on `main`, **nothing pushed**:
+
+```
+tang-ultima    9bb4abd  switch cores through the board's own BL616, into the FPGA's SRAM
+               4881e83  fix the USB keyboard lost until a power cycle
+tang-uknc      5d626ea  add a UART to the on-board BL616 and fix the lost USB keyboard
+tang-pk8000    f3a783d  (same)
+tang-korvet    e919628  (same)
+```
+
+Left uncommitted in the siblings, as before: their `bin/tang.fs` and
+`tang/impl/` rebuild output (uknc 4 Sep, korvet 13 Sep 11:31, from
+their own sessions), and in tang-pk8000 two PDFs and `prompts/4`, `5`
+that are not mine.  Their shipped `bin/bl616.bin` and `bin/tang.fs` do
+not carry CMD 11 or the keyboard fix until they rebuild them.  The host
+gcc 15.2 ICEs at -O1 on ff.c: `HOST_OPT=-O0` in the Makefile is the
+workaround.
 
 ---
 

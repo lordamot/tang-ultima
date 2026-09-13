@@ -148,3 +148,16 @@ round: upstream's bl616_bootloader_0x20000_nano20k_signed.bin (#170)
 starts 0x20000 unconditionally at the cost of the USB-C programmer until
 flash-mcu-onboard-ftdi.  Decided: leave as is.  Recorded in progress.md
 and handover.md.  Open: whether the keyboard survives its sleep.
+
+commit this and siblings
+
+***
+
+Siblings: a coreload/CMD 11 entry added to each CHANGELOG, then one
+commit each of CHANGELOG, mnano/usb_host.c, mister/{coreload.v,
+sysctrl.v}, top.v, the .gprj - uknc 5d626ea, pk8000 f3a783d, korvet
+e919628; their bin/tang.fs, impl/ dirt and pk8000's PDFs/prompts left
+alone.  Here: 9bb4abd the switch through the on-board BL616 (onboard/,
+coreload.c, Makefile targets, bin/onboard incl. the backup, tools
+scripts force-added, docs), 4881e83 the keyboard fix.  Nothing pushed.
+handover.md updated.
