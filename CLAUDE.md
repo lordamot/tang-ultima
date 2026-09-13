@@ -13,80 +13,93 @@ three repositories and are not copied here.  This repository holds
 what makes them one board:
 
 ```
-Makefile      builds each core OUT OF its sibling's tree into build/cores/<core>/
-              with the next slot's flash address in its header, gates it with
-              the sibling's own timing check, packs the three into bin/ultima.bin
+Makefile      builds each core OUT OF its sibling's tree into build/cores/<core>/,
+              gates it with the sibling's own timing check, and packs each to
+              bin/<core>.bin - one core a file, no slots
 mnano/        ONE BL616 firmware for all three cores (MiSTeryNano's, merged
-              from the three siblings' copies) plus ultima.c, the core switch
-tools/        mkimage.py (the flash image, checks the ring); the fetched
-              toolchain, hard-linked from a sibling on this host, gitignored
-bin/          uknc.fs pk8000.fs korvet.fs ultima.bin bl616.bin - what a user flashes
+              from the three siblings' copies) plus ultima.c and flashwr.c,
+              the core switch
+tools/        mkimage.py (one .fs -> the bytes the flash holds, checked); the
+              fetched toolchain, hard-linked from a sibling on this host, gitignored
+bin/          uknc.fs pk8000.fs korvet.fs, uknc.bin pk8000.bin korvet.bin,
+              bl616.bin - what a user flashes and what goes on the card
 ```
 
-Started 12 September 2026.  **Nothing has run on a board**, and that
-includes the switching mechanism itself; `.claude/docs/progress.md`
-says what has been verified and how.  "It builds", "it lints", "the
-menu walks on the host" and "it meets timing" are four claims, none of
-them "it works".
+Started 12 September 2026.  **The switch works on a board**, as of 13
+September: the Korvet was chosen from the OSD, written to the flash from
+the card, read back over JTAG byte-identical, and booted.  It took two
+designs to get there - the first, Gowin MultiBoot, cannot be triggered on
+this board at all - and `.claude/docs/progress.md` is the record of both
+and must stay one.  Still say which claim you are making: "it builds", "it
+lints", "the menu walks on the host" and "it meets timing" are four
+claims, none of them "it works".
 
 ## The mechanism, in one paragraph
 
-Gowin MultiBoot (UG290 §7.5.4, `tools/gowin/doc/ENG/UG290*.pdf`): each
-bitstream's header names the flash address of the NEXT bitstream, and a
-low pulse on RECONFIG_N makes the FPGA load it; power-up always loads
-address 0.  The three images sit at 0x000000 (UKNC), 0x100000 (PK8000),
-0x200000 (Korvet), a ring.  Each core's `sysctrl.v` takes **CMD 9 + A5h**
-and pulses `reconfig`, `top.v` drives **RECONFIG_N = pin 9** low for 256
-clocks (`-use_reconfign_as_gpio`, UG290 §4.2 allows exactly this), and
-the FPGA reloads.  The firmware cannot pick a slot, only say "next": it
-reads the wanted core from `/sd/ultima.ini`, compares with the core id
-the FPGA answers (CMD 0), and hops until they agree (`mnano/ultima.c`).
-`.claude/docs/multiboot.md` has the whole account and the evidence.
+**Power-up always loads flash address 0, and that is the only lever.**
+The flash holds one bitstream, at address 0, and that is the machine the
+board is.  All three live on the SD card as packed bitstreams,
+`/cores/<name>.bin`.  The OSD's Core form writes the wanted one into
+address 0 - about 20 seconds - and asks for a power cycle:
+`mnano/flashwr.c` composes W25Q64
+commands out of one primitive offered by `mister/flashwr.v` over **SYS CMD
+10** - a 512-byte buffer and "shift TX bytes out, read RX back, CS held" -
+and that module owns MCLK 59, MCS_N 60, MO 61 and MI 62, which
+`-use_mspi_as_gpio` hands to user logic once configuration is done (UG290
+§4.1.2 table 4-2).  `.claude/docs/coreswitch.md` is the whole of it.
+
+**Why not MultiBoot:** the jump address can be put in every header, but
+the trigger does not exist.  A low pulse on RECONFIG_N should reload the
+FPGA and on this board it does nothing - the pulse is provably generated
+(an LED latched off `sys_reconfig` keeps blinking through CMD 9) and pin 9
+reaches nothing but test pad TP1, so nothing external holds it up.
+Reusing the pad as a GPIO cuts it from the configuration controller.
+`.claude/docs/multiboot.md` keeps that account; **one wire from header pin
+48 to TP1 would bring the instant switch back**, and everything needed for
+it is still in the three cores.
 
 ## Traps worth remembering
 
-- **The ring is written in three places and they must agree**: the
-  Makefile's `CORES`/`ADDR_*`/`NEXT_*`, `mnano/ultima.c`'s
-  `ultima_cores[]` (same order), and the header of each built `.fs`.
-  `tools/mkimage.py` refuses an image whose headers do not close the
-  ring - and it checks the *binary* field (the D2 command's operand at
-  0x38), not the `//MultiBootSPIAddr` comment, because the comment is
-  only what the tool was told.  Gowin's `-multiboot_spi_flash_address`
-  wants BARE hex digits (`00100000`): given `0x100000` the header reads
-  `0x0x00100000` and the value is still right, but do not rely on it.
+- **Writing flash address 0 is writing the only thing the board can
+  boot.**  `flash_install()` refuses before it erases - a Winbond JEDEC
+  ID on the MSPI pins, a file between 64 KB and 1 MB, `a5 c3` at 0x16 and
+  IDCODE `0x0000081b` at 0x1c - and verifies after.  `tools/mkimage.py`
+  checks the same two bitstream fields when it makes the file, so the two
+  ends agree by construction.  A power cut between the erase and the end
+  of the write is a board that needs openFPGALoader; the OSD says "Do not
+  switch off!" throughout, and that is not decoration.
 - **The siblings are read, never written, by a build here.**  gw_sh
   runs in `build/cores/<core>/` with absolute source paths
   (`gowin_tcl.py --abs`), so their `tang/impl/pnr/`, `tang/build.tcl`
-  and `bin/tang.fs` stay theirs.  The reconfig support (CMD 9,
-  `reconfig_n`, pin 9, `RECONFIG_N: true` in the process config, the
-  `--multiboot-addr`/`--abs` options of `gowin_tcl.py`, the PnR-dir
-  argument of `timing_check.py`) IS in the siblings' trees, as a generic
-  feature: a standalone build names address 0 and reloads itself.
-- **Flashing three slots is ONE openFPGALoader run**, `make flash-image`
-  with `bin/ultima.bin` (`--file-type bin -o 0`).  The Tang's USB
-  bridge takes one USB reset per replug, so three `-o` runs would be
-  three replugs; and the `.bin` is byte-identical to what openFPGALoader
-  writes for a `.fs` (checked: the packed `.fs` equals Gowin's own
-  `.bin`).  Replug, flash, power-cycle, in that order.
-- **A dead link reads as requests.**  While the FPGA reloads, MISO
-  floats; `sdc_handle_event` would take that for a sector request - a
-  WRITE into a mounted image among the possibilities.  So the switch
-  closes every image first, and `sys_irq_hold` (sysctrl.c, honoured in
-  spi.c's task) stops interrupt processing until the new core is up and
-  the card is remounted (`sdc_reattach`).  Keep every path that touches
-  the link during a switch behind that flag.
-- **A fresh core raises coldboot, and coldboot resets the MCU.**  That
-  is MiSTeryNano's design (`sys_handle_event`) and it is what makes the
-  OSD's switch clean: one hop, the MCU restarts, `ultima_boot()` finishes
-  the walk with the card's wish.  Inside the walk the notice is
-  acknowledged (`sys_irq_ctrl(spi, 1)`) before the hold is lifted, or
-  the MCU would reset in the middle of it.  `main()` waits ten seconds
-  for the FPGA, not MiSTeryNano's five: after the switch the MCU is up
-  before the FPGA is.
+  and `bin/tang.fs` stay theirs.  What IS in the siblings' trees, as a
+  generic feature: `mister/flashwr.v` and sysctrl's **CMD 10**, the four
+  MSPI pins with `"MSPI" : true` in the process config, the `--abs`
+  option of `gowin_tcl.py`, the PnR-dir argument of `timing_check.py`,
+  and the now-dormant CMD 9 / `reconfig_n` on pin 48.
+- **openFPGALoader is needed once.**  `make flash-image` writes
+  `bin/$(DEFAULT_CORE).bin` to address 0 (`--file-type bin -o 0`);
+  replug, flash, power-cycle, in that order.  After that the board
+  installs cores itself from the card, and the host tool is only for
+  recovery.  The packed `.bin` is byte-identical to Gowin's own (checked
+  against `impl/pnr/*.bin`), and `--file-type bin -o 0` is **verified**
+  to write correctly - read back over JTAG and compared, 13 Sep 2026.
+- **The card and the flash share the m0s link.**  A sector request
+  arriving in the middle of a page program is a transaction that never
+  completes, so `ultima_switch()` closes every image before it starts.
+  `sys_irq_hold` and `sdc_reattach` survive from the MultiBoot design and
+  are no longer used by the switch - the link never dies now, because the
+  FPGA never reloads while the firmware is running.
+- **A switch is not a reconfiguration.**  `ultima_switch()` writes the
+  flash and returns; the running machine does not change and the OSD says
+  to power-cycle.  `ultima_boot()` no longer walks anything - it reports
+  which machine came up, makes its card directory, and warns if
+  `/sd/ultima.ini` names a different core, which means an install did not
+  finish or the card came off another board.
 - **SYS CMD 6 means three things.**  RTC read on the UKNC, RAM poke on
   the PK8000 and Korvet; `spi.h` defines `SPI_SYS_RTC` and
   `SPI_SYS_POKE` both as 6, and the firmware only sends each to its own
-  core.  CMD 9 is the only command that is the same on all three.
+  core.  CMD 9 and CMD 10 are the only commands that are the same on all
+  three.
 - **One firmware, three menus, one `core_id`.**  Everything the firmware
   selects by core is indexed by `core_id` (5 UKNC, 7 PK8000, 8 Korvet):
   `keymap[]`/`modifier[]` (usb_host.c), `settings_file_name()`,
@@ -100,7 +113,9 @@ the FPGA answers (CMD 0), and hops until they agree (`mnano/ultima.c`).
   `MAX_DRIVES + 1`.
 - **The card is per core**: `ultima_root()` is `/sd/<dir>` and the file
   browser's root, the `.ini` sits there, `extrom/` and `RT11SAV` too
-  (`extrom.h`, `rt11sav.h`).  `/sd/ultima.ini` alone is in the root.
+  (`extrom.h`, `rt11sav.h`).  Only `/sd/ultima.ini` and `/sd/cores/` are
+  in the root - and without `/sd/cores/<name>.bin` there is no switch at
+  all, just an OSD saying the file is missing (`make card`).
 - **`prompts/` is a transcript, not context.**  Never read it at the
   start of a session; append every exchange as it finishes, in the form
   `.claude/rules/guideline.md` gives.

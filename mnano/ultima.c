@@ -1,23 +1,30 @@
 /*
   ultima.c - the core switch of Tang Ultima.  See ultima.h.
 
-  The mechanism, in one paragraph: the Tang Nano 20K's 8 MB flash holds
-  the three bitstreams at 1 MB slots (../Makefile: UKNC at 0, PK8000 at
-  0x100000, Korvet at 0x200000), each built with the next slot's address
-  in its header.  The FPGA loads slot 0 at power-up.  SYS command 9
-  (sys_reconfig) makes the running core pulse RECONFIG_N, on which the
-  FPGA loads the image at the address its current header names - the
-  next core in the ring.  So from any core the wanted one is one or two
-  hops away, and this file walks them: it cannot pick a slot, it can
-  only say "next" and look at who answers.
+  The mechanism, in one paragraph: the flash holds one bitstream, at
+  address 0, and that is the machine the board is.  The three machines sit
+  on the card as packed bitstreams, /sd/cores/<name>.bin.  Switching means
+  writing the wanted one to address 0 - flashwr.c, through flashwr.v and
+  the MSPI pins the FPGA hands to user logic after configuration - and
+  then power-cycling the board, because power-up always loads address 0.
 
-  Two things about the MCU's side of that.  While the FPGA reloads (a
-  few seconds at Gowin's default loading rate) the SPI link is dead and
-  a read of it is floating pins; the interrupt processing (spi.c) is
-  held off through sys_irq_hold so that a floating "sector request" is
-  not served against a mounted image.  And a core that has just loaded
-  raises its coldboot notice, which the firmware otherwise answers by
-  resetting the MCU (sysctrl.c) - expected here, acknowledged here.
+  This is the second design.  The first was Gowin MultiBoot: three slots,
+  every bitstream's header naming the next, and SYS command 9 pulsing
+  RECONFIG_N to make the FPGA jump.  On this board the pulse is provably
+  generated and the FPGA provably ignores it - reusing the pad as a GPIO
+  cuts it from the configuration controller, and pin 9 goes nowhere but a
+  test pad, so nothing external is holding it up.  The whole account is in
+  .claude/docs/progress.md.  SYS command 9 is still in every core and in
+  sysctrl.c; one wire from pin 48 to that pad would bring the instant
+  switch back, and nothing here would need to change but this file.
+
+  What is gone with MultiBoot is the ring, the walk, and the need to hold
+  the SPI link across a reconfiguration: the link never dies now, because
+  the FPGA never reloads while the firmware is running.  What is new is
+  the risk at the other end - the install erases the only bitstream the
+  board can boot, so it checks the file is one before it starts, verifies
+  what it wrote, and says loudly that a power cut in the middle means
+  openFPGALoader.
 */
 
 #include <stdio.h>
@@ -26,6 +33,7 @@
 #include <ff.h>
 
 #include "ultima.h"
+#include "flashwr.h"
 #include "sysctrl.h"
 #include "sdc.h"
 
@@ -34,8 +42,8 @@
 #include <task.h>
 #endif
 
-// The ring, in flash order.  The Makefile's CORES and this table say
-// the same thing twice; the order is what makes the hop count right.
+// The three.  The Makefile's CORES says the same thing; the order is only
+// cosmetic now that there is no ring to walk.
 const ultima_core_t ultima_cores[ULTIMA_CORES] = {
   { CORE_ID_UKNC,   "UKNC",   "uknc",   "uknc.ini"   },
   { CORE_ID_PK8000, "PK8000", "pk8000", "pk8000.ini" },
@@ -56,9 +64,15 @@ const char *ultima_root(void) {
   return root;
 }
 
-// the card's wish: "core=korvet" (the directory name or the OSD's name,
-// case does not matter) in /sd/ultima.ini; anything else in the file is
-// ignored, so it can carry comments
+const char *ultima_core_path(const ultima_core_t *c) {
+  static char path[48];
+  snprintf(path, sizeof(path), ULTIMA_COREDIR "/%s.bin", c->dir);
+  return path;
+}
+
+// what the card says is installed: "core=korvet" (the directory name or
+// the OSD's name, case does not matter) in /sd/ultima.ini; anything else
+// in the file is ignored, so it can carry comments
 unsigned char ultima_wanted(void) {
   unsigned char id = 0;
   FIL fil;
@@ -90,7 +104,9 @@ static void ultima_set_wanted(const ultima_core_t *c) {
   FIL fil;
   sdc_lock();
   if(f_open(&fil, ULTIMA_INI, FA_WRITE | FA_CREATE_ALWAYS) == FR_OK) {
-    f_puts("; Tang Ultima - the core to run; the OSD's Core form writes this\n", &fil);
+    f_puts("; Tang Ultima - the core installed in the flash, written by\n", &fil);
+    f_puts("; the OSD's Core form.  Power-up loads whatever is at flash\n", &fil);
+    f_puts("; address 0; this only records which one that is.\n", &fil);
     f_puts("core=", &fil);
     f_puts(c->dir, &fil);
     f_puts("\n", &fil);
@@ -111,103 +127,87 @@ static void ultima_mkdir(void) {
   sdc_unlock();
 }
 
-#ifndef SDL
-
-// One hop: tell the core to reconfigure, then wait for whoever comes up.
-// The old core is gone within microseconds of the pulse, but its last
-// answers may still be in flight, so nothing is believed for the first
-// while; then a core has ten seconds to answer, three of which the load
-// takes at the default rate.  Returns 0 with core_id set to the new
-// core, -1 when nothing answered.
-static int ultima_hop(spi_t *spi) {
-  sys_reconfig(spi);
-  vTaskDelay(pdMS_TO_TICKS(300));
-  for(int t=0;t<1000;t++) {
-    if(sys_status_is_valid(spi)) {
-      sys_set_val(spi, 'R', 3);   // hold the machine, as main() does
-      return 0;
-    }
-    vTaskDelay(pdMS_TO_TICKS(10));
+// Here rather than in flashwr.c so that the host menu test, which links
+// ultima.c but has no SPI link to give flashwr.c, still has the strings.
+const char *flash_strerror(int err) {
+  switch(err) {
+  case 0:                return "ok";
+  case FLASH_ERR_BUS:    return "no flash on the MSPI pins";
+  case FLASH_ERR_OPEN:   return "cannot open the core file";
+  case FLASH_ERR_SIZE:   return "the core file is the wrong size";
+  case FLASH_ERR_NOTBIT: return "not a bitstream for this FPGA";
+  case FLASH_ERR_READ:   return "cannot read the core file";
+  case FLASH_ERR_ERASE:  return "erase failed";
+  case FLASH_ERR_WRITE:  return "write failed";
+  case FLASH_ERR_VERIFY: return "what was written does not read back";
+  default:               return "unknown error";
   }
-  return -1;
-}
-
-// walk the ring to `want`; -1 if it could not be reached
-static int ultima_walk(spi_t *spi, unsigned char want) {
-  for(int hops=0; hops<ULTIMA_CORES && core_id != want; hops++) {
-    unsigned char was = core_id;
-    const ultima_core_t *c = ultima_core(want);
-    printf("core %02x running, %s (%02x) wanted: reconfiguring\r\n", was, c->name, want);
-    if(ultima_hop(spi) < 0) {
-      printf("no core answered after the reconfiguration\r\n");
-      return -1;
-    }
-    if(core_id == was) {
-      // the same core again: a bitstream without CMD 9, or a flash with
-      // one image whose header names itself
-      printf("the core did not change - no MultiBoot image to go to\r\n");
-      return -1;
-    }
-  }
-  return core_id == want ? 0 : -1;
 }
 
 void ultima_boot(spi_t *spi) {
   unsigned char want = ultima_wanted();
   const ultima_core_t *running = ultima_core(core_id);
+#ifdef SDL
+  (void)spi;
+#endif
 
-  printf("Tang Ultima: running %s (%02x), card asks for %02x\r\n",
-	 running ? running->name : "an unknown core", core_id, want);
+  printf("Tang Ultima: running %s (%02x)\r\n",
+	 running ? running->name : "an unknown core", core_id);
 
-  if(want && want != core_id && ultima_core(want)) {
-    sys_irq_hold = 1;
-    int r = ultima_walk(spi, want);
-    if(sys_status_is_valid(spi)) {
-      // the new core's coldboot notice is ours, not a reason to reset;
-      // its sd_card.v has brought the card up again, so mount afresh
-      sys_irq_ctrl(spi, 0x01);
-      sdc_reattach();
-    }
-    sys_irq_hold = 0;
-    if(r < 0) printf("Tang Ultima: staying on core %02x\r\n", core_id);
+#ifndef SDL
+  // Read-only, and it is what says whether a switch is possible at all on
+  // this board: if the flash does not answer here, the Core form cannot
+  // work and this is where that becomes visible - before anything is
+  // erased rather than after.
+  flash_probe(spi);
+#endif
+
+  // Nothing is reconfigured here - there is no way to, and that is the
+  // whole point of the design.  But a disagreement is worth saying: it
+  // means an install did not finish, or this card came off another board.
+  if(want && want != core_id) {
+    const ultima_core_t *c = ultima_core(want);
+    printf("Tang Ultima: the card says %s is installed, but %s is running -\r\n",
+	   c ? c->name : "another core", running ? running->name : "something else");
+    printf("Tang Ultima: install it again from the OSD's Core form\r\n");
   }
   ultima_mkdir();
 }
 
-void ultima_switch(spi_t *spi, unsigned char id) {
+#ifndef SDL
+
+int ultima_switch(spi_t *spi, unsigned char id, flash_progress_t cb) {
   const ultima_core_t *c = ultima_core(id);
-  if(!c || id == core_id) return;
+  if(!c) return FLASH_ERR_OPEN;
+  if(id == core_id) return 0;
 
-  printf("Tang Ultima: switching to %s\r\n", c->name);
-  ultima_set_wanted(c);
+  printf("Tang Ultima: installing %s from %s\r\n", c->name, ultima_core_path(c));
 
-  // Nothing may be asked of the images while the link is dead: close
-  // them (the core is told they are gone, which it will not remember).
+  // Nothing must be asked of the images while the flash is being written:
+  // the card and the flash share the m0s link, and a sector request in
+  // the middle of a page program is a transaction that never completes.
   for(int d=0;d<MAX_DRIVES;d++) sdc_image_open(d, NULL);
 
-  // one hop now; the MCU restarts around it and ultima_boot() walks the
-  // rest of the way with the card's wish in hand - one code path for
-  // both the OSD's switch and the power-up
-  sys_irq_hold = 1;
-  sys_set_val(spi, 'R', 3);
-  sys_reconfig(spi);
-  vTaskDelay(pdMS_TO_TICKS(100));
-  sys_reset_mcu();
-  while(1) vTaskDelay(pdMS_TO_TICKS(100));
+  int r = flash_install(spi, ultima_core_path(c), cb);
+  if(r == 0) {
+    ultima_set_wanted(c);
+    printf("Tang Ultima: %s is in the flash - power-cycle the board\r\n", c->name);
+  } else
+    printf("Tang Ultima: %s not installed: %s\r\n", c->name, flash_strerror(r));
+  return r;
 }
 
 #else  // the host test (menu_test.c): the switch is recorded, not made
 
 unsigned char ultima_test_switched = 0;
 
-void ultima_boot(spi_t *spi) { (void)spi; }
-
-void ultima_switch(spi_t *spi, unsigned char id) {
-  (void)spi;
+int ultima_switch(spi_t *spi, unsigned char id, flash_progress_t cb) {
+  (void)spi; (void)cb;
   if(ultima_core(id) && id != core_id) {
     ultima_set_wanted(ultima_core(id));
     ultima_test_switched = id;
   }
+  return 0;
 }
 
 #endif

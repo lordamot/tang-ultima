@@ -3,31 +3,34 @@
 #
 # The machines are the sibling repositories, built here out of their trees:
 #
-#   ../tang-uknc     МС0511 УКНЦ      slot 0  0x000000  (the power-on core)
-#   ../tang-pk8000   ПК8000 Сура      slot 1  0x100000
-#   ../tang-korvet   ПК8020 Корвет    slot 2  0x200000
+#   ../tang-uknc     МС0511 УКНЦ
+#   ../tang-pk8000   ПК8000 Сура
+#   ../tang-korvet   ПК8020 Корвет
 #
-# Each bitstream's header names the next slot (Gowin MultiBoot), the core
-# pulses RECONFIG_N on the firmware's SYS command 9, and the FPGA loads
-# that slot.  The firmware (mnano/) is one binary that knows all three
-# and hops the ring until the core the card asks for is running.
-# .claude/docs/ has the account; `make help` this list.
+# The flash holds ONE bitstream, at flash address 0, and that is the
+# machine the board is - power-up always loads address 0.  All three live
+# on the SD card as packed bitstreams, /cores/<name>.bin, and the OSD's
+# Core form writes the wanted one into address 0 through the FPGA's own
+# MSPI pins (mnano/flashwr.c, mister/flashwr.v); the board is then
+# power-cycled into it.  MultiBoot and its ring are gone: RECONFIG_N
+# cannot be pulsed from inside this FPGA.  .claude/docs/ has the account.
 #
 #   make toolchain     fetch the toolchain into tools/  (~8 GB, once)
-#   make cores         build the three bitstreams -> bin/<core>.fs, bin/ultima.bin
+#   make cores         build all three -> bin/<core>.fs and bin/<core>.bin
 #   make core-uknc     one of them (also core-pk8000, core-korvet)
-#   make image         bin/ultima.bin from bin/*.fs (checks the ring)
+#   make card          say which files to copy onto the SD card
 #   make fw            build the BL616 firmware -> build/fw/bl616.bin
 #   make menu-test     the OSD menu on the host, all three cores' forms as PNG
 #   make lint          Verilator over each core, in its own tree
-#   make flash-image   openFPGALoader bin/ultima.bin into the flash (one operation)
-#   make flash-core-uknc   one slot only (also flash-core-pk8000, -korvet)
+#   make flash-image   openFPGALoader the default core into flash address 0
+#   make flash-core-uknc   any single core into address 0 (also -pk8000, -korvet)
 #   make flash-mcu     flash the firmware over UART (COMX=/dev/ttyACM0)
 #   make clean         remove build/
 #
-# LOADING_RATE=<MHz> passes -loading_rate to Gowin for all three cores
-# (the MSPI clock the FPGA reads the flash at; the default 2.5 makes a
-# core switch about 3 s a hop).  Untested on a board: leave it alone
+# DEFAULT_CORE=<name> is what `make flash-image` puts at address 0 (uknc).
+# LOADING_RATE=<MHz> passes -loading_rate to Gowin for all three cores -
+# the MSPI clock the FPGA reads the flash at, Gowin's default being 2.5,
+# which is about 3 s to configure.  Untested on a board: leave it alone
 # unless you mean to try it.
 
 ROOT     := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
@@ -47,27 +50,28 @@ BLFLASH  := $(TOOLS)/bouffalo_sdk/tools/bflb_tools/bouffalo_flash_cube/BLFlashCo
 PYTHON   := python3
 
 #-----------------------------------------------------------------------
-# The cores: where each lives, what Gowin calls its project, which slot
-# it takes and which slot its header points at.  The ring is the order
-# of CORES; mnano/ultima.c has the same three in the same order.
+# The cores: where each lives and what Gowin calls its project.
+#
+# There are no slots any more.  The flash holds ONE bitstream, at address
+# 0, and that is the machine the board is; the three live on the SD card
+# as packed bitstreams and the OSD writes the wanted one to address 0
+# (mnano/flashwr.c, .claude/docs/coreswitch.md).  MultiBoot is gone
+# because RECONFIG_N cannot be pulsed from inside this FPGA - see
+# .claude/docs/progress.md - so the ring, the jump addresses and the
+# three-slot image went with it.
 #-----------------------------------------------------------------------
 CORES        := uknc pk8000 korvet
-SLOT_SIZE    := 0x100000
+# what `make flash-image` puts at address 0, i.e. what a fresh board is
+DEFAULT_CORE ?= uknc
 
 DIR_uknc     := $(ROOT)/../tang-uknc
 NAME_uknc    := test003
-ADDR_uknc    := 0x000000
-NEXT_uknc    := 0x100000
 
 DIR_pk8000   := $(ROOT)/../tang-pk8000
 NAME_pk8000  := pk8000
-ADDR_pk8000  := 0x100000
-NEXT_pk8000  := 0x200000
 
 DIR_korvet   := $(ROOT)/../tang-korvet
 NAME_korvet  := korvet
-ADDR_korvet  := 0x200000
-NEXT_korvet  := 0x000000
 
 LOADING_RATE ?=
 TCLOPTS      := $(if $(LOADING_RATE),--loading-rate $(LOADING_RATE),)
@@ -82,7 +86,7 @@ FW_BIN   ?= bin/bl616.bin
 FW_BOARD := bl616dk -DCMAKE_C_FLAGS=-DM0S_DOCK=1 -DCONFIG_BT_STACK_CLI=0
 FW_OUT   := mnano/build/build_out/misterynano_fw_bl616.bin
 
-.PHONY: all help toolchain cores image fw menu-test lint clean \
+.PHONY: all help toolchain cores card fw menu-test lint clean \
         flash-image flash-mcu \
         $(foreach c,$(CORES),core-$(c) flash-core-$(c) lint-$(c))
 
@@ -108,20 +112,25 @@ bin/$(1).fs: $$(BUILD)/cores/$(1)/impl/pnr/$$(NAME_$(1)).fs
 	  echo "$(1): NOT copied to bin/: the layout fails its timing gate" >&2; exit 1; }
 	@mkdir -p bin
 	@rm -f $$@ && cp $$< $$@ && chmod u+w $$@
-	@grep -a "^//MultiBootSPIAddr" $$@
 	@grep -iE "Timing Constraints|Logic|Register|BSRAM|PLL" \
 	    $$(BUILD)/cores/$(1)/impl/pnr/$$(NAME_$(1)).rpt.txt 2>/dev/null | head -8 || true
+
+# the packed form, which is what goes on the card and what the OSD writes
+# into the flash - byte for byte Gowin's own .bin
+bin/$(1).bin: bin/$(1).fs $$(TOOLS)/mkimage.py
+	$$(PYTHON) $$(TOOLS)/mkimage.py --fs2bin bin/$(1).fs $$@
 
 $$(BUILD)/cores/$(1)/impl/pnr/$$(NAME_$(1)).fs: FORCE
 	@test -x $$(GWSH) || { echo "gowin missing - run: make toolchain" >&2; exit 1; }
 	@test -d $$(DIR_$(1))/tang || { echo "$$(DIR_$(1)) not found - the sibling repository is expected beside this one" >&2; exit 1; }
 	@mkdir -p $$(BUILD)/cores/$(1)
-	$$(PYTHON) $$(DIR_$(1))/tools/gowin_tcl.py --abs --multiboot-addr $$(NEXT_$(1)) $$(TCLOPTS) \
+	$$(PYTHON) $$(DIR_$(1))/tools/gowin_tcl.py --abs $$(TCLOPTS) \
 	    > $$(BUILD)/cores/$(1)/build.tcl
 	cd $$(BUILD)/cores/$(1) && $$(GWENV) $$(GWSH) build.tcl
 
-flash-core-$(1): bin/$(1).fs
-	$$(OFL) -b tangnano20k -f -o $$(ADDR_$(1)) bin/$(1).fs
+# there is one slot, address 0, so this is the same write for every core
+flash-core-$(1): bin/$(1).bin
+	$$(OFL) -b tangnano20k -f --file-type bin -o 0 bin/$(1).bin
 
 lint-$(1):
 	$$(MAKE) -C $$(DIR_$(1)) lint
@@ -130,20 +139,23 @@ $(foreach c,$(CORES),$(eval $(call CORE_RULES,$(c))))
 
 FORCE:
 
-cores: $(foreach c,$(CORES),bin/$(c).fs) image
+cores: $(foreach c,$(CORES),bin/$(c).fs bin/$(c).bin)
 
 lint: $(foreach c,$(CORES),lint-$(c))
 
 #-----------------------------------------------------------------------
-# The flash image: the three at their slots, one file, one flash
-# operation (the Tang's USB bridge takes one openFPGALoader run per
-# replug - build.md).  mkimage.py refuses a ring that does not close.
+# The card.  /sd/cores/<name>.bin is where the OSD looks for a machine to
+# install, so these three files are what makes the switch work at all -
+# without them the Core form can only report that the file is missing.
 #-----------------------------------------------------------------------
-image: bin/ultima.bin
-
-bin/ultima.bin: $(foreach c,$(CORES),bin/$(c).fs) $(TOOLS)/mkimage.py
-	$(PYTHON) $(TOOLS)/mkimage.py $@ $(SLOT_SIZE) \
-	    $(foreach c,$(CORES),$(ADDR_$(c)):$(NEXT_$(c)):bin/$(c).fs)
+card: $(foreach c,$(CORES),bin/$(c).bin)
+	@echo
+	@echo "copy these into /cores/ on the SD card:"
+	@ls -l $(foreach c,$(CORES),bin/$(c).bin)
+	@echo
+	@echo "  SD:/cores/uknc.bin  SD:/cores/pk8000.bin  SD:/cores/korvet.bin"
+	@echo
+	@echo "and SD:/ultima.ini records which one is in the flash (the OSD writes it)."
 
 #-----------------------------------------------------------------------
 # MCU firmware
@@ -188,8 +200,11 @@ menu-test: $(MENU_TEST_SRC) mnano/menu.h mnano/ultima.h VERSION
 # reliably reconfigure the chip).  The BL616: hold BOOT, tap RESET,
 # release BOOT, then say which port that put on the host.
 #-----------------------------------------------------------------------
-flash-image: bin/ultima.bin
-	$(OFL) -b tangnano20k -f --file-type bin -o 0 bin/ultima.bin
+# The first flash: one core at address 0, which is all the flash holds.
+# After this the board never needs openFPGALoader again unless an install
+# is interrupted - the OSD writes address 0 itself from the card.
+flash-image: bin/$(DEFAULT_CORE).bin
+	$(OFL) -b tangnano20k -f --file-type bin -o 0 bin/$(DEFAULT_CORE).bin
 
 flash-mcu:
 	@test -x $(BLFLASH) || { \

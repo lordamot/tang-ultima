@@ -16,9 +16,10 @@ usb_host.c   keymap[]/modifier[] for all three; the UKNC's matrix-tracking
 sdc.c        drivename() per core; the UKNC's IDE geometry; SDC_SLOT_EXTRA; the
              browser rooted at the core's directory; sdc_reattach()
 sysctrl.c    CMD 6 as RTC (UKNC) and POKE (PK8000/Korvet), CMD 7 debug, CMD 8
-             ExtROM, CMD 9 reconfig; sys_irq_hold; sys_reset_mcu()
+             ExtROM, CMD 9 reconfig (dormant); sys_irq_hold; sys_reset_mcu()
 spi.c        the interrupt task honours sys_irq_hold
-ultima.c/h   the core table, /sd/ultima.ini, the walk (multiboot.md)
+ultima.c/h   the core table, /sd/ultima.ini, the install (coreswitch.md)
+flashwr.c/h  the W25Q64 over SYS CMD 10: what puts a core at flash address 0
 main.c       ultima_boot() before menu_init(); ten seconds for the FPGA
 uknc.h pk8000.h korvet.h   the keymaps, verbatim from the siblings
 rt11sav.c bas.c extrom.c   the UKNC's, PK8000's and Korvet's own, paths moved
@@ -36,6 +37,9 @@ there, untouched.
 
 ```
 /ultima.ini                 core=uknc | pk8000 | korvet     (ultima.c)
+/cores/uknc.bin             the three machines as packed bitstreams; the OSD
+/cores/pk8000.bin           installs one of them into flash address 0 and the
+/cores/korvet.bin           board is power-cycled into it (flashwr.c)
 /uknc/uknc.ini              the UKNC's settings              (settings_file_name)
 /uknc/                      its file browser's root; RT11BASE.DSK, RT11SAV.DSK (rt11sav.h)
 /pk8000/pk8000.ini          the PK8000's
@@ -91,7 +95,7 @@ SYS commands, by core:
 
 ## The switch, from the firmware's side
 
-`ultima.c`, and `.claude/docs/multiboot.md` for the whole of it.  Three
+`ultima.c`, and `.claude/docs/coreswitch.md` for the whole of it.  Three
 rules the rest of the firmware keeps for it:
 
 - `sys_irq_hold` up means: do not read the interrupt status (spi.c), do

@@ -1820,6 +1820,54 @@ static void menu_step_value(menu_t *menu, const char *s, int step) {
   menu_variable_set(menu, s, value);
 }
 
+// ------------------------------------------------------------------
+// Tang Ultima: installing a core rewrites the only bitstream the board
+// can boot, and takes some seconds, so the OSD says what is going on the
+// whole time.  flashwr.c calls menu_install_draw() back as it goes; the
+// menu it draws on is stashed here because a progress callback has no
+// room to carry it.
+// ------------------------------------------------------------------
+static menu_t    *install_menu = NULL;
+static const char *install_name = "";
+
+static void menu_install_draw(int stage, int done, int total) {
+  static const char *what[4] = { "Checking", "Erasing", "Writing", "Verifying" };
+  char l1[40], l2[40];
+
+  if(!install_menu) return;
+  snprintf(l1, sizeof(l1), "Installing %s", install_name);
+  if(total > 0) snprintf(l2, sizeof(l2), "%s %d%%", what[stage & 3],
+                         (int)((done * 100L) / total));
+  else          snprintf(l2, sizeof(l2), "%s ...", what[stage & 3]);
+
+  u8g2_ClearBuffer(MENU2U8G2(install_menu));
+  menu_draw_title(install_menu, "Core,;");
+  u8g2_DrawStr(MENU2U8G2(install_menu), 1, 13 + 12 * 1, l1);
+  u8g2_DrawStr(MENU2U8G2(install_menu), 1, 13 + 12 * 2, l2);
+  u8g2_DrawStr(MENU2U8G2(install_menu), 1, 13 + 12 * 3, "Do not switch off!");
+  u8g2_SendBuffer(MENU2U8G2(install_menu));
+}
+
+static void menu_install_result(menu_t *menu, const char *name, int r) {
+  char l1[40];
+
+  u8g2_ClearBuffer(MENU2U8G2(menu));
+  menu_draw_title(menu, "Core,;");
+  if(r == 0) {
+    snprintf(l1, sizeof(l1), "%s installed", name);
+    u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 1, l1);
+    u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 2, "Power-cycle the board");
+  } else {
+    u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 1, "Install FAILED");
+    u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 2, flash_strerror(r));
+    // past the erase there is no bitstream at address 0 any more, so
+    // powering off now is a board that needs openFPGALoader
+    if(r == FLASH_ERR_ERASE || r == FLASH_ERR_WRITE || r == FLASH_ERR_VERIFY)
+      u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 3, "Do NOT switch off - retry");
+  }
+  u8g2_SendBuffer(MENU2U8G2(menu));
+}
+
 static void menu_select(menu_t *menu) {
   if(menu->form == MENU_FORM_FSEL) {
     menu_fileselector(menu, FSEL_SELECT);
@@ -1871,19 +1919,19 @@ static void menu_select(menu_t *menu) {
 
   case 'C': {
     // Tang Ultima: another machine.  The running one is a no-op; any
-    // other is written to the card and the FPGA is handed over, and
-    // this firmware restarts on the far side (ultima.c) - so say what is
-    // happening first, since nothing after this draws anything.
+    // other is written from the card into flash address 0, which takes
+    // some seconds and must not be interrupted, and only a power cycle
+    // makes it the running machine - nothing can reload this FPGA from
+    // software (ultima.c).
     unsigned char id = menu_get_int(menu, s, MENU_ENTRY_INDEX_OPTIONS);
     const ultima_core_t *c = ultima_core(id);
     if(c && id != core_id) {
-      char msg[40];
-      snprintf(msg, sizeof(msg), "Switching to %s ...", c->name);
-      u8g2_ClearBuffer(MENU2U8G2(menu));
-      menu_draw_title(menu, "Core,;");
-      u8g2_DrawStr(MENU2U8G2(menu), 1, 13 + 12 * 2, msg);
-      u8g2_SendBuffer(MENU2U8G2(menu));
-      ultima_switch(menu->osd->spi, id);
+      install_menu = menu;
+      install_name = c->name;
+      menu_install_draw(FLASH_STAGE_CHECK, 0, 0);
+      int r = ultima_switch(menu->osd->spi, id, menu_install_draw);
+      menu_install_result(menu, c->name, r);
+      install_menu = NULL;
     }
   } break;
 

@@ -1,0 +1,236 @@
+check project state. flashed on board - it does not switch cores, only uknc core active all the time
+
+***
+
+Audited everything that can be checked without a board; all of it is sound.
+
+Repo state: main, one commit, clean except the three bin/*.fs - a rebuild
+only, since their packed binaries are identical to bin/ultima.bin.
+
+Verified on the host: the three set_option lines in the generated
+build.tcl; the jump address in the binary at 0x38 (0x00100000,
+0x00200000, 0x00000000) and Gowin's own impl/pnr/*.bin byte-identical to
+the packed one; a stock build and a MultiBoot build differing in exactly
+one byte of the first kilobyte, 0x39; reconfig_n at 9/3 out RECONFIG_N in
+the pin report with no gw_sh warning; CMD 9 + A5h -> reconfig ->
+reconfig_cnt -> reconfig_n and the .cst line identical in all three
+siblings; menu.c's 'C' entry -> ultima_switch -> sys_reconfig -> CMD 9.
+UG290 4.2 and 7.5.4 re-read from the PDF: they match the account, and add
+that RECONFIG_N is open-drain with a ~100 uA internal pull-up.
+
+So no coding defect found.  Two possibilities left, identical from
+outside: RECONFIG_N from user logic does not reload this FPGA, or it
+reloads from address 0 - most likely because slots 1 and 2 were never
+written, which --file-type bin -o 0 had never been verified to do.
+
+Asked for the console output across a switch, whether the screen goes
+black for about three seconds, and a flash readback.
+
+---
+
+when selecting other core - osd writes "switching to korvet..." but then
+normal uknc restart as is was uknc machine still
+read flash back you can do yourself
+
+one more thing to note - when osd shows "switching to korvet" and then
+reboots into uknc again - core selection menu shows uknc active also; may
+it be so ini file on sd did not saved?
+
+***
+
+Read the flash back over JTAG: openFPGALoader -b tangnano20k
+--dump-flash --file-size 3004570 -o 0.  It is byte-identical to
+bin/ultima.bin - all three slots, all three jump addresses.  The flash is
+ruled out, and so is item 2 of the unverified list: --file-type bin -o 0
+does write the raw 3 MB image correctly.
+
+The Core form marking UKNC as active is not evidence of a lost .ini: the
+mark comes from CMD 0, so it shows whatever core is answering.
+
+And the .ini cannot be the cause at all.  One hop from the UKNC is the
+PK8000, not the Korvet.  ultima_switch sends CMD 9 once, before the MCU
+resets and before any .ini is read; ultima_boot would only finish the
+walk afterwards.  A lost /sd/ultima.ini would therefore have left the
+board on the PK8000.  It is on the UKNC, so the first hop had no effect
+at all - which narrows it to the FPGA not reloading, or reloading from
+address 0.
+
+The discriminator is time: about three seconds of a dead SPI link after
+CMD 9 means it did reload and came back to slot 0; an immediate answer
+means the pulse did nothing.  Either the firmware console says so
+(/dev/ttyACM0, the M0S Dock), or the jump target is poisoned - the UKNC
+built with --multiboot-addr 0x700000 into slot 0 alone, so a reload
+leaves the board dark until a power cycle and no reload leaves the UKNC
+running.  Asked for the console, or for leave to run the poisoned-target
+test.
+
+progress.md now carries the first flash's result and the defect.
+
+---
+
+bliking led blinks, and keeps it
+well, cant we do it so that machine cores will be files on sd instead? so
+switching core loads it into fpga ram instead of flash maybe?
+
+***
+
+Case A.  CMD 9 reaches sysctrl.v, the magic byte matches, reconfig pulses
+and reconfig_cnt is loaded - and the FPGA does not reload.  Case B is
+out: no configuration is attempted at all, so the jump address is not the
+fault.  What is left is A1, pin 9 never reaching a low level because
+something on the board holds it high (it sits in the corner with TMS 5,
+TCK 6, TDI 7, TDO 8 and the oscillator on 4 - board infrastructure, so
+the on-board BL616 is the likely holder), or A2, the pin going low and
+the configuration controller ignoring it.  Telling them apart needs pin 9
+at a header.
+
+Also checked -multiboot_mode and -multiboot_address_width, two options
+gowin_tcl.py never set: their values sit beside single|fast|dual|quad (the
+jump's SPI read mode) and 24|32 (the address width), so they are not a
+trigger switch and the defaults are right.
+
+Loading a core into the FPGA's SRAM is not reachable on this hardware.
+It needs a configuration port: JTAG goes to the on-board BL616, not to
+the M0S Dock; SSPI needs the MODE straps (pins 87/88, which are the two
+buttons here) and its pins are already GPIO in all three cores; and the
+card is behind the FPGA, so while the FPGA is unconfigured nothing can
+read it, and 907 KB will not fit in the BL616's RAM to buffer.
+
+What does work is the same idea through the flash, and it needs no
+RECONFIG_N: an SPI-flash writer in each core with -use_mspi_as_gpio
+(MCLK 59, MCS_N 60, MO 61, MI 62, none of them used by the designs),
+writing the wanted core into slot 0, then a power cycle - power-up always
+loads address 0.  Two sources for the bytes: flash to flash through a
+BSRAM buffer, about six seconds, cores staying in the flash; or from .fs
+files on the card, tens of seconds, cores becoming files that can be
+replaced without a toolchain.  The cost either way is a power cycle per
+switch, and a power failure mid-write needs openFPGALoader to recover.
+
+Asked which way to go, and whether pin 9 is reachable on the board -
+one multimeter reading would say whether the elegant fix is possible.
+
+Then the Tang Nano 20K schematic v1.3 answered the pin 9 question.  Its
+net, PIN09_SYS_~{RECFG}, appears exactly twice in the whole schematic: at
+the FPGA's IOR31B/RECONFIG_N, and at TP1.  The six test points are TP1
+RECONFIG_N, TP2 GND, TP3 TCK, TP4 TDO, TP5 TDI, TP6 TMS.  The on-board
+BL616 is NOT on that net and there is no external pull-up.  So A1 is out
+by inspection - 8 mA against 100 uA of internal pull-up and nothing else
+must reach 0 V - and it is A2: the pin goes low and the configuration
+controller ignores it, -use_reconfign_as_gpio having cut the pad from it.
+
+The fix: leave pin 9 a real RECONFIG_N input (drop
+-use_reconfign_as_gpio) and drive TP1 from a free header pin, open-drain,
+one wire.  Nothing else changes - the three slots, the ring, mkimage.py
+and ultima.c's walk all stay.  Free pins with no configuration function:
+25-32 (bank 5) and 48, 49 (bank 3); pin 48 first choice.  The LCD_* nets
+do reach the headers - this board's M0S Dock is on pins 41 and 42, whose
+nets are PIN41_LCD_R4 and PIN42_LCD_R3.
+
+Built it: all three siblings now place reconfig_n on pin 48 with
+OPEN_DRAIN=ON, "RECONFIG_N" : false in each process config so no
+-use_reconfign_as_gpio is emitted, and the blink diagnostic reverted.
+All three lint clean, all three pass their timing gate with 0 setup and 0
+hold violations, each pin report shows reconfig_n at 48/3 IOR49[B] out
+with Open Drain ON and pin 9 back to an unassigned RECONFIG_N input, the
+ring closes, and the flash was written and read back byte-identical to
+bin/ultima.bin.
+
+The board now needs one wire, header pin 48 to TP1, then a power cycle
+and F12 -> Core -> Korvet.  Nothing committed.
+
+---
+
+[Core form answers: pin 9 reachable "I don't know yet"; mechanism "Wait -
+settle pin 9 first"; then, after the schematic: "Yes, pin 48 -> TP1";
+then] hm. Only testpads I see on tang board are: Jtag TMS, TCK, TDI, TDO;
+and pair of GND and PIN09_IOR31B_RECFG_N
+can we redesign to avoid additional wires completely maybe?
+[and] Yes - card -> flash installer
+
+***
+
+All three machines in one bitstream is not close: logic 130%, BSRAM 87
+blocks of 46, six rPLLs wanted of two at frequencies that cannot be
+shared.  Even two do not fit (58 BSRAM of 46).  So reconfiguration is
+unavoidable, and without a wire the only lever is what sits at flash
+address 0, which power-up always loads.
+
+Built the flash writer.  mister/flashwr.v in all three siblings: a
+512-byte buffer and one transaction - shift TX bytes out, read RX back, CS
+held - on MCLK 59, MCS_N 60, MO 61, MI 62 at MCLK = clk/4.  The buffer is
+what removes the race between the 20 MHz m0s link and the flash clock that
+a bit-level bridge would have had.  It is not a flash controller: the whole
+W25Q64 command set is in mnano/flashwr.c.  "MSPI" : true in each process
+config gives -use_mspi_as_gpio; UG290 4.1.2 table 4-2 says those pins are
+configuration pins until DONE and GPIOs after, so a bitstream that takes
+them over still boots from the flash it takes over - which is also what
+openFPGALoader's own external-flash path does from the JTAG side.
+
+sysctrl CMD 10 passes the payload through.  flash_install() refuses before
+it erases - a Winbond JEDEC ID, a file of 64 KB..1 MB, a5 c3 at 0x16,
+IDCODE 0000081b at 0x1c - then erases 14 blocks, writes 3545 pages and
+reads it all back to compare.  ultima.c lost the ring and the walk;
+ultima_switch() installs and returns, and the machine changes on the next
+power-up.  The OSD draws Checking/Erasing/Writing/Verifying with a
+percentage and "Do not switch off!".  mkimage.py is --fs2bin only, with the
+same two checks the firmware makes.  The Makefile has no slots and
+bin/ultima.bin is gone; make card says what to copy.
+
+Writing the plan up showed a gap: there was no way to prove the flash bus
+works without starting an install that erases address 0.  So flash_probe()
+was added - 9F, 05, 03, no WREN, read-only - and ultima_boot() runs it at
+every start.  Two console lines then retire the whole risk before anything
+is at stake.
+
+Verified here: all three lint; all three build at 0 setup and 0 hold
+violations, costing +140/+232/+142 LUTs and one BSRAM block each; the MSPI
+pins place on 59/60/61/62 with their configuration functions and pin 9 is a
+RECONFIG_N input again; the firmware builds at 461 712 bytes with no
+warnings in the new files; make menu-test walks 28 screens with 0 errors.
+Nothing has written the flash from user logic - that needs the board.
+
+---
+
+companion board connected / tang connected / SD connected
+korvet installed, not power cycled yet
+it shows korvet nano and corvet. even before power cycle btw
+OSD is correct also
+install take about 20secs
+
+***
+
+It works, end to end.
+
+Flashed the new firmware (461 712 bytes, SHA verified on the device), then
+the new UKNC core to flash address 0 and read it back over JTAG - identical
+to bin/uknc.bin.  Wrote the card from this host: /cores/uknc.bin,
+pk8000.bin, korvet.bin, each compared after copying, and ultima.ini
+corrected from core=korvet to core=uknc (it had said korvet since the
+MultiBoot attempt, which was never true).  The UKNC then came up from the
+flash, which proves -use_mspi_as_gpio does not stop the FPGA booting from
+the flash it takes over - the one assumption that could not be tested off
+the board.
+
+F12 -> Core -> Korvet reported "Korvet installed".  Before any power cycle
+the flash was read back over JTAG and compared with bin/korvet.bin:
+byte-identical.  That is the measurement that cannot be taken afterwards,
+and it matters because the firmware verifies its own write - the firmware
+agreeing with itself proves little, while JTAG never passed through
+flashwr.v.
+
+Then the board showed Korvet Nano without a power cycle, which is itself a
+finding: openFPGALoader resets the FPGA at the end of a flash operation
+(hence --skip-reset), and for Gowin that reset is a JTAG RELOAD, which
+reconfigures the device from flash address 0 - by then the Korvet.  So the
+configuration controller is perfectly willing to reload; it really is only
+the RECONFIG_N pad, reused as a GPIO, that loses its path to it.  Anything
+holding the FPGA's JTAG can reload the board, which the on-board BL616
+does; TP3..TP6 are TCK/TDO/TDI/TMS, so four wires from the companion BL616
+would remove the power cycle - against one wire for RECONFIG_N, so the
+single wire stays the better option if one is ever wanted.
+
+An install takes about 20 seconds.  The flash-to-flash copy engine would
+cut it to about six and is not worth building.
+
+progress.md, CLAUDE.md, coreswitch.md and the guideline all corrected -
+they said "not yet tried" and now say what the board showed.

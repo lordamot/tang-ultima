@@ -3,56 +3,66 @@
 What ships prebuilt, so a user needs no toolchain:
 
 ```
-bin/uknc.fs bin/pk8000.fs bin/korvet.fs   the three cores, one a slot
-bin/ultima.bin                            the three at their slots, one flash image
-bin/bl616.bin                             the firmware
+bin/uknc.fs bin/pk8000.fs bin/korvet.fs      the three cores, Gowin's ASCII form
+bin/uknc.bin bin/pk8000.bin bin/korvet.bin   the same packed - what the flash
+                                             holds and what goes on the card
+bin/bl616.bin                                the firmware
 ```
+
+There are no slots: the flash holds one bitstream, at address 0, and the
+card holds all three.  `.claude/docs/coreswitch.md` says why.
 
 Everything builds here; `tools/` holds the toolchain (`make toolchain`,
 ~8 GB; on this host hard-linked from `../tang-korvet/tools/`, same
 inodes) and the three sibling repositories must sit beside this one.
 
 ```
-make cores         the three bitstreams -> bin/, then bin/ultima.bin
+make cores         all three -> bin/<c>.fs and bin/<c>.bin
 make core-<c>      one of uknc, pk8000, korvet
-make image         bin/ultima.bin from bin/*.fs (mkimage.py checks the ring)
+make card          say which files to copy onto the SD card
 make fw            the firmware -> build/fw/bl616.bin  (copy to bin/ by hand)
 make menu-test     the OSD on the host, every form of every core -> build/menu/*.png
 make lint          each sibling's Verilator lint
-make flash-image   openFPGALoader bin/ultima.bin -> the flash, one run
-make flash-core-<c>  one slot (-o <addr> core.fs); three of these are three replugs
+make flash-image   openFPGALoader bin/<DEFAULT_CORE>.bin -> flash address 0
+make flash-core-<c>  any single core -> address 0 (the same write, another file)
 make flash-mcu     the BL616 over UART (COMX=/dev/ttyACM0)
 ```
 
 ## A core
 
-`make core-korvet` runs `../tang-korvet/tools/gowin_tcl.py --abs
---multiboot-addr 0x000000` into `build/cores/korvet/build.tcl`, then
+`make core-korvet` runs `../tang-korvet/tools/gowin_tcl.py --abs` into
+`build/cores/korvet/build.tcl`, then
 gw_sh there.  gw_sh writes `impl/` under its cwd, so the PnR output is
 `build/cores/korvet/impl/pnr/korvet.fs` and the sibling's tree is not
 touched.  `../tang-korvet/tools/timing_check.py build/cores/korvet/impl/pnr`
 gates it - the sibling's own rules, its own clocks - and the `.fs` is
 copied to `bin/korvet.fs`.  About 35 s (PK8000) to 60 s (UKNC, Korvet).
 
-The build reads the sibling's `.gprj` and its
-`tang/impl/<name>_process_config.json` for the dual-purpose pins; both
-carry `RECONFIG_N: true` since Sep 2026.  A sibling built in its own
-tree (`make bitstream` there) has the same reconfig support with the
-address left at 0 - it reloads itself on CMD 9.
+The build reads the sibling's `.gprj` for the file list and its
+`tang/impl/<name>_process_config.json` for the dual-purpose pins.  Both
+carry `"MSPI" : true` since Sep 2026, which is what puts the flash on
+`flashwr.v`'s MSPI pins after configuration, and `"RECONFIG_N" : false` -
+pin 9 is left a configuration input, and `reconfig_n` sits on pin 48
+instead, dormant unless a wire is run from there to TP1.  A sibling built
+in its own tree has all of it.
 
 The gw_sh quirks (its libraries against a current Linux, its option
 names, `-use_sspi_as_gpio`) are the siblings' business and their
 `build.md` has them; the Makefile here sets the same three environment
 variables.
 
-## The image
+## The packed bitstream
 
-`tools/mkimage.py bin/ultima.bin 0x100000 ADDR:NEXT:core.fs ...` packs
-each `.fs` (bit lines, MSB first - byte-identical to Gowin's `.bin`),
-checks that each header's MultiBoot address is the next slot both in the
-`//` comment and in the `D2` command's operand at 0x38, that each fits
-its slot, and lays them out with 0xFF between.  Change the layout in the
-Makefile and this refuses until the cores are rebuilt to match.
+`tools/mkimage.py --fs2bin bin/korvet.fs bin/korvet.bin` turns the `.fs`'s
+bit lines into bytes, MSB first - byte-identical to Gowin's own `.bin`,
+checked against `impl/pnr/*.bin` and against UKNC Nano's committed pair.
+
+It refuses anything that is not a bitstream for this device: the `//`
+header's `Device`, the Gowin preamble `a5 c3` at 0x16, IDCODE
+`0x0000081b` at 0x1c, and a size between 64 KB and 1 MB.  Those are the
+same checks `mnano/flashwr.c` makes before it erases flash address 0, and
+they are in both places on purpose - a file this script accepts is a file
+the firmware will accept.
 
 ## Flashing the FPGA
 
@@ -61,24 +71,30 @@ learned it: openFPGALoader `-f` writes the flash and reports success but
 does not reliably reconfigure the chip, and once anything has opened the
 board's `/dev/ttyUSB*` or a previous openFPGALoader run has reset the
 bridge, the next run dies with `ftdi_usb_reset failed` until the cable is
-replugged.  That is why the three slots go in one run:
+replugged.
 
 ```
-make flash-image     openFPGALoader -b tangnano20k -f --file-type bin -o 0 bin/ultima.bin
+make flash-image     openFPGALoader -b tangnano20k -f --file-type bin -o 0 bin/uknc.bin
 ```
 
-`--file-type bin` makes openFPGALoader (v1.1.1 in tools/) take the file
-raw rather than parse it as a bitstream.  The write covers 3 MB and
-erases only the sectors it writes.  **Not yet run on a board**; if it
-refuses the raw file, the fallback is three `make flash-core-<c>` runs
-with a replug before each.
+`--file-type bin` makes openFPGALoader (v1.1.1 in `tools/`) take the file
+raw rather than parse it as a bitstream.  **Verified on the board**, 13
+September 2026: written and then read back with `--dump-flash
+--file-size` and compared byte for byte.
 
-A single core can also be flashed the sibling's way (`make
-flash-fpga-flash` there, or `-o 0 bin/uknc.fs` here): slot 0 alone, its
-header pointing at an empty slot 1.  A switch from it will then fail to
-load - the FPGA tries slot 1, finds nothing, and sits until a power
-cycle - which is the documented shape of the failure, not a hang of the
-firmware: `main()` reports "FPGA not ready after 10 seconds".
+This is needed once.  After it, the OSD installs cores from the card
+itself and the host tool is only for recovery - which is what it is for if
+an install is interrupted between the erase and the end of the write.
+
+Reading the flash back is the same tool and is worth knowing:
+
+```
+openFPGALoader -b tangnano20k --dump-flash --file-size 907418 -o 0 flash.bin
+cmp flash.bin bin/uknc.bin
+```
+
+It loads a pass-through bitstream into the FPGA's SRAM to do it, so the
+board needs a power cycle afterwards.
 
 ## Flashing the BL616
 
@@ -94,16 +110,23 @@ with an absolute path.
 The M0S Dock's UART (io21/22, 2 Mbit/s) prints what `ultima.c` does:
 
 ```
-Tang Ultima: running UKNC (05), card asks for 08
-core 05 running, Korvet (08) wanted: reconfiguring
-SYS reconfigure
-Core ID: 07
-core 07 running, Korvet (08) wanted: reconfiguring
-SYS reconfigure
-Core ID: 08
-created /sd/korvet
+Tang Ultima: running UKNC (05)
+flash: JEDEC ID ef4017 (W25Q64, 8 MB), status 00
+flash: address 0 holds a GW2AR-18C bitstream
+Tang Ultima: installing Korvet from /sd/cores/korvet.bin
+flashwr: JEDEC ID ef4017
+flashwr: /sd/cores/korvet.bin, 907418 bytes
+flashwr: erasing 14 blocks
+flashwr: writing 3545 pages
+flashwr: verifying
+flashwr: 907418 bytes installed at address 0 and verified
+Tang Ultima: Korvet is in the flash - power-cycle the board
 ```
 
-"the core did not change - no MultiBoot image to go to" is a bitstream
-without CMD 9 or a lone image; "no core answered after the
-reconfiguration" is an empty or bad slot (power-cycle: slot 0 loads).
+The two `flash:` lines come from `flash_probe()` at every boot and are
+read-only; they are the cheapest possible check that the switch can work.
+The refusals all name themselves: "refusing - no Winbond flash answered"
+is the MSPI pins not reaching the chip, "no Gowin preamble" or "IDCODE
+..., want 0000081b" is the wrong file on the card, and "mismatch at
+<addr>" is a verify failure - after which address 0 is **not** a
+bitstream, so retry rather than power off.

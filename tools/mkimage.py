@@ -1,26 +1,40 @@
 #!/usr/bin/env python3
-"""Pack the cores' bitstreams into one SPI flash image, checking the ring.
+"""Pack one core's bitstream into the binary form the flash holds.
 
-Each core is a Gowin .fs (ASCII bits, a `//` header) built by ../tang-<core>
-with `--multiboot-addr` naming the NEXT slot's address; the FPGA starts at
-0 and moves to that address whenever RECONFIG_N is pulsed (UG290 7.5.4).
-This script packs each .fs to its binary form - the same bytes Gowin's
-own .bin holds and openFPGALoader writes for a .fs - places it at its slot
-and writes the whole thing as one raw file for a single flash operation.
-Before that it refuses anything that would leave the board without a
-way back:
+A Gowin .fs is ASCII: a `//` header and then lines of '0' and '1'.  The
+flash wants those bits as bytes, MSB first, which is byte for byte what
+Gowin's own .bin holds and what openFPGALoader writes for a .fs (checked
+against UKNC Nano's committed test003.fs/.bin pair).
 
-  * an image larger than its slot;
-  * a header whose //MultiBootSPIAddr is not the next slot in the ring
-    (a wrong link makes the switch land on the wrong core, or on nothing);
-  * a header for a different device.
+The result is used twice, and both matter:
 
-  mkimage.py OUT.bin SLOT_SIZE  ADDR:NEXT:core.fs  ADDR:NEXT:core.fs ...
+  * `make flash-image` writes it to flash address 0 with openFPGALoader -
+    the first flash of a board, and the only one needed;
+  * it is copied onto the SD card as /cores/<name>.bin, from where the
+    OSD installs it into address 0 itself (mnano/flashwr.c).
 
-Also `mkimage.py --fs2bin IN.fs OUT.bin` packs one bitstream alone.
+Address 0 is the only thing this board can boot, so putting the wrong
+bytes there is a board that needs openFPGALoader to come back.  The
+checks below are therefore the same two mnano/flashwr.c makes before it
+erases anything - the Gowin preamble and this device's IDCODE - so that a
+file this script accepts is a file the firmware will accept.
+
+There used to be more to this script: three cores packed into one 3 MB
+image at 1 MB slots, with each header's MultiBoot jump address checked to
+close a ring.  That design is gone, because RECONFIG_N cannot be pulsed
+from inside this FPGA and so the jump can never be triggered - see
+.claude/docs/progress.md and .claude/docs/coreswitch.md.
+
+  mkimage.py --fs2bin IN.fs OUT.bin
 """
 import re
 import sys
+
+DEVICE       = "GW2AR-18"
+IDCODE       = 0x0000081B    # what --detect reads off this FPGA
+IDCODE_OFF   = 0x1C          # 32-bit, big-endian
+MAGIC_OFF    = 0x16          # a5 c3, the Gowin preamble
+FLASH_SLOT   = 0x100000      # the most one core may occupy at address 0
 
 
 def fs_load(path):
@@ -44,62 +58,35 @@ def fs_load(path):
     return header, int(data, 2).to_bytes(len(data) // 8, "big")
 
 
-def spi_addr_field(packed):
-    """The 32-bit operand of the D2 (SPI flash address) preamble command,
-    or None.  The preamble is short; look only there."""
-    i = packed.find(b"\xd2\x00\xff\xff", 0, 256)
-    if i < 0:
-        return None
-    return int.from_bytes(packed[i + 4:i + 8], "big")
+def check(path, header, packed):
+    dev = header.get("Device", "?")
+    if dev != DEVICE:
+        sys.exit(f"{path}: device {dev}, want {DEVICE}")
+    if len(packed) < 0x10000 or len(packed) > FLASH_SLOT:
+        sys.exit(f"{path}: {len(packed)} bytes will not do - the firmware "
+                 f"takes 0x10000..0x{FLASH_SLOT:x}")
+    if packed[MAGIC_OFF:MAGIC_OFF + 2] != b"\xa5\xc3":
+        sys.exit(f"{path}: no Gowin preamble at 0x{MAGIC_OFF:02x} "
+                 f"({packed[MAGIC_OFF:MAGIC_OFF + 2].hex()}, want a5c3)")
+    idcode = int.from_bytes(packed[IDCODE_OFF:IDCODE_OFF + 4], "big")
+    if idcode != IDCODE:
+        sys.exit(f"{path}: IDCODE 0x{idcode:08x}, want 0x{IDCODE:08x}")
+    return idcode
 
 
 def main():
-    if len(sys.argv) >= 2 and sys.argv[1] == "--fs2bin":
-        _, packed = fs_load(sys.argv[2])
-        open(sys.argv[3], "wb").write(packed)
-        print(f"{sys.argv[3]}: {len(packed)} bytes")
-        return
-
-    if len(sys.argv) < 4:
+    if len(sys.argv) != 4 or sys.argv[1] != "--fs2bin":
         sys.exit(__doc__)
-    out, slot_size = sys.argv[1], int(sys.argv[2], 0)
-    image = bytearray()
-    device = None
-    for spec in sys.argv[3:]:
-        addr, nxt, path = spec.split(":", 2)
-        addr, nxt = int(addr, 0), int(nxt, 0)
-        header, packed = fs_load(path)
-        dev = header.get("Device", "?")
-        if device is None:
-            device = dev
-        elif dev != device:
-            sys.exit(f"{path}: device {dev}, the others are {device}")
-        got = int(header.get("MultiBootSPIAddr", "0x0"), 16)
-        if got != nxt:
-            sys.exit(f"{path}: header names next image 0x{got:06x}, "
-                     f"the ring wants 0x{nxt:06x} - rebuild with --multiboot-addr")
-        # The header line is only text; the address the FPGA reads is the
-        # operand of the D2 command in the bitstream's preamble (seen by
-        # building the same core with two addresses: one 32-bit field,
-        # big-endian, at 0x38 on the GW2AR-18).  Check that too.
-        enc = spi_addr_field(packed)
-        if enc is None:
-            sys.exit(f"{path}: no MultiBoot address command (D2) in the preamble")
-        if enc != nxt:
-            sys.exit(f"{path}: bitstream encodes next image 0x{enc:06x}, "
-                     f"the header says 0x{got:06x}")
-        if len(packed) > slot_size:
-            sys.exit(f"{path}: {len(packed)} bytes do not fit a "
-                     f"0x{slot_size:x}-byte slot")
-        if addr % 0x1000:
-            sys.exit(f"{path}: slot 0x{addr:x} is not 4 KB aligned")
-        if len(image) > addr:
-            sys.exit(f"{path}: slot 0x{addr:x} overlaps the previous image")
-        image += b"\xff" * (addr - len(image))
-        image += packed
-        print(f"  0x{addr:06x}  {len(packed):8d} bytes  -> next 0x{nxt:06x}  {path}")
-    open(out, "wb").write(image)
-    print(f"{out}: {len(image)} bytes, {device}")
+    src, out = sys.argv[2], sys.argv[3]
+    header, packed = fs_load(src)
+    idcode = check(src, header, packed)
+    with open(out, "wb") as f:
+        f.write(packed)
+    pages = -(-len(packed) // 256)
+    blocks = -(-len(packed) // 65536)
+    print(f"{out}: {len(packed)} bytes, {header.get('Device', '?')} "
+          f"IDCODE 0x{idcode:08x}")
+    print(f"  an install is {blocks} block erases and {pages} page writes")
 
 
 if __name__ == "__main__":

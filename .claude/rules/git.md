@@ -43,11 +43,17 @@ document the flash layout
 
 ## What *is* committed on purpose
 
-- **`bin/uknc.fs`, `bin/pk8000.fs`, `bin/korvet.fs`, `bin/ultima.bin`,
-  `bin/bl616.bin`** - what a user flashes, so no toolchain is needed for
-  that.  Rebuilt from the tree: `make cores` copies each `.fs` to `bin/`
-  once its timing gate passes and packs `ultima.bin`; `make fw` leaves
-  the firmware in `build/fw/` and it is copied on by hand.
+- **`bin/uknc.fs`, `bin/pk8000.fs`, `bin/korvet.fs`** - the cores as
+  Gowin writes them, and **`bin/uknc.bin`, `bin/pk8000.bin`,
+  `bin/korvet.bin`** - the same packed, which is what goes on the SD card
+  and what the flash holds; plus **`bin/bl616.bin`**, the firmware.  So no
+  toolchain is needed to use the board.  Rebuilt from the tree: `make
+  cores` copies each `.fs` to `bin/` once its timing gate passes and packs
+  the `.bin`; `make fw` leaves the firmware in `build/fw/` and it is
+  copied on by hand.
+
+  `bin/ultima.bin` is gone - it was the three-slot MultiBoot image, and
+  there are no slots any more.
 - **`VERSION`** - read into the OSD's caption by `mnano/CMakeLists.txt`.
 
 ## Working tree noise

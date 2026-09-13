@@ -1,4 +1,19 @@
-# MultiBoot: how one board is three machines
+# MultiBoot: the first design, and why it is not used
+
+> **SUPERSEDED, 13 September 2026.**  Everything below is correct about
+> what Gowin documents and about what this repository built - and it does
+> not work on this board, because **RECONFIG_N cannot be pulsed from
+> inside this FPGA**.  The pulse is generated and no configuration is
+> attempted; pin 9 reaches nothing but test pad TP1, so nothing external
+> holds it up, which leaves the pad losing its path to the configuration
+> controller when it is reused as a GPIO.  `progress.md` has the evidence
+> and `coreswitch.md` has the design that replaced this one: one
+> bitstream at flash address 0, the three on the card, written from the
+> OSD and power-cycled into.
+>
+> Kept because the account is worth having, and because **one wire from
+> header pin 48 to TP1 would make all of it work** - the cores still
+> carry CMD 9 and `reconfig_n`.
 
 ## The facts (UG290 2.7.6, §7.5.4, §4.2, §7.5.3)
 

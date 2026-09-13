@@ -19,8 +19,13 @@
 #define SPI_SYS_POKE      6   // PK8000: an address and bytes into the machine's RAM (bas.c)
 #define SPI_SYS_DEBUG     7   // PK8000/Korvet: the debug window (memcheck.v) - an offset, then bytes
 #define SPI_SYS_EXTROM    8   // Korvet: the ExtROM channel (extrom.v) - a sub-command, then bytes
-#define SPI_SYS_RECONFIG  9   // all three: A5h after it pulses RECONFIG_N - the FPGA loads the next
-                              // image in the flash (ultima.c; sysctrl.v CMD 9)
+#define SPI_SYS_RECONFIG  9   // all three: A5h after it pulses RECONFIG_N.  Dormant - the pulse
+                              // does not reload this FPGA (docs/progress.md); kept because a
+                              // wire from pin 48 to TP1 would make it work
+#define SPI_SYS_FLASH    10   // all three: the configuration flash, through flashwr.v - a
+                              // sub-command, then its bytes (flashwr.c).  This is how a core
+                              // switch happens: the wanted machine is written to flash
+                              // address 0 and the board is power-cycled into it.
 
 #define SPI_TARGET_HID    1   // human interface devices
 #define SPI_HID_STATUS    0
