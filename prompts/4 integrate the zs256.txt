@@ -1,0 +1,45 @@
+integrate another core - ../tang-zs256 (base path on SD - zs256)
+
+***
+
+The ZS-256 (ZS-256 Nano, ../tang-zs256 - the Scorpion ZS-256 Turbo+) is the
+fourth core.  Its tree already had everything a core here needs -
+mister/coreload.v and flashwr.v byte-identical to the other three
+siblings', CMD 10/11 in its sysctrl.v, core id 9 on CMD 0, gowin_tcl.py
+--abs, timing_check.py's PnR-dir argument, MSPI in its process config -
+so nothing in the sibling was edited.  Everything else was "three" written
+in this repository:
+
+- Makefile: CORES += zs256, DIR_zs256/NAME_zs256, the card target says the
+  two ROM files must be put in /zs256/ by hand.
+- mnano/: CORE_ID_ZS256 9; sys_poke24() (CMD 6 with three address bytes -
+  the ZS-256's meaning, only ever sent to core 9); zs256.h verbatim;
+  romload.c/h with the default ROM paths moved under /sd/zs256/; the
+  ZS-256's forms with S,Core,2, About, variables, rom_boot() at start,
+  rom_select() from slot 5 of the file selector, its own Debug page byte
+  map, 'm' resets; drivename() "A B C D HDD"; ultima_cores[] fourth entry,
+  ULTIMA_CORES 4, a fourth C entry on the Core form; the settings file
+  saves drive5= on the ZS-256 only (the ROM it names is loaded at every
+  start).  ZS-256 Nano's usb_host.c fix - the six key slots compared as a
+  set, releases sent with the OSD open - is in for every core, since its
+  chords need it.
+- menu_test.c: a fourth run_core, the Core form checked as ULTIMA_CORES+2
+  entries, and picking a ROM checked to call rom_select() with
+  /sd/zs256/GAME.rom, mount nothing, remember the name, close the OSD.
+- Docs: CLAUDE.md, the rules, mcu.md, build.md, CHANGELOG, progress.md
+  ("The fourth core"), handover.md (a section on top), onboard/stage.h's
+  comment.  README rewritten to the mechanism as it is - it still described
+  MultiBoot and "nothing on a board".
+
+Checked: make core-zs256 builds out of the sibling's tree (~70 s, logic
+46%, registers 21%, timing gate 0/0), mspi_* on 59-62 and uart_tx/rx on
+69/70 in the pin report; bin/zs256.bin 907 418 bytes, byte-identical to
+Gowin's own, a5 c3 at 0x16 and IDCODE 0x0000081b at 0x1c; make lint-zs256
+ok; make fw builds (469 296 bytes, copied to bin/bl616.bin); make
+menu-test 40 screens, 0 errors over four cores.  The sibling's git status
+is unchanged.
+
+Not checked, and cannot be here: the ZS-256 on a board under this firmware
+at all - switched to, saved to flash, its ROMs loaded, its keyboard; the
+key-report change on the other three cores; the firmware on the dock.
+Nothing committed.

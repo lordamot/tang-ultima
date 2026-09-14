@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **A fourth core: the ZS-256** (`../tang-zs256`, ZS-256 Nano - the
+  Scorpion ZS-256 Turbo+).  `make core-zs256`, `bin/zs256.fs` and
+  `bin/zs256.bin`, `/sd/cores/zs256.bin`, `/sd/zs256/` on the card with
+  `zs256.ini`, `zs256.rom` and `gs105a.rom` (the ROMs are not in the
+  bitstream: `mnano/romload.c` sends them into the SDRAM at start over
+  SYS CMD 6 with three address bytes, `sys_poke24`).  Core id 9;
+  `keymap_zs256`, its forms, About, Debug page and "ROM:" selector in
+  the firmware; the Core form has four machines and "Save to flash".
+  Built, timed, linted, walked on the host (`make menu-test`, 40
+  screens, 0 errors); **not seen on a board**.
+- The USB keyboard report is compared as a set of six keys, not slot by
+  slot (from ZS-256 Nano, 14 Sep 2026): a keyboard packs its slots, so
+  releasing the first of two held keys moved the second and the old
+  compare sent the core a release and a press for a key that never
+  moved.  A release now reaches the core with the OSD open too.  All
+  cores; not seen on a board.
+- README brought to the current mechanism (it still described
+  MultiBoot).
 - USB keyboard lost until a power cycle - the likely cause removed, not
   yet seen fixed on a board.  A keyboard with a power-saving mode drops
   off the bus and re-attaches as it wakes, often within the 100 ms the

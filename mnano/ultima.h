@@ -1,7 +1,7 @@
 /*
-  ultima.h - Tang Ultima: three machines in one Tang Nano 20K.
+  ultima.h - Tang Ultima: four machines in one Tang Nano 20K.
 
-  The three machines live on the card as packed bitstreams,
+  The machines live on the card as packed bitstreams,
   /sd/cores/<name>.bin.  A SWITCH sends one of them to the board's own
   BL616, which loads it into the FPGA's SRAM over the JTAG it owns
   (coreload.c; onboard/ is that chip's firmware) - a few seconds, no
@@ -19,7 +19,8 @@
   Then it was the flash write alone, with a power cycle after it.
 
   Each core keeps its files under its own directory on the card -
-  /sd/uknc, /sd/pk8000, /sd/korvet - and sdc.c asks here which one it is.
+  /sd/uknc, /sd/pk8000, /sd/korvet, /sd/zs256 - and sdc.c asks here which
+  one it is.
 */
 #ifndef ULTIMA_H
 #define ULTIMA_H
@@ -34,19 +35,19 @@ typedef struct {
   const char   *ini;     // its settings file, under that directory
 } ultima_core_t;
 
-// the three, in the Makefile's CORES order
+// the four, in the Makefile's CORES order
 extern const ultima_core_t ultima_cores[];
-#define ULTIMA_CORES 3
+#define ULTIMA_CORES 4
 
 // where the installed core is recorded, on the card's root
 #define ULTIMA_INI   CARD_MOUNTPOINT "/ultima.ini"
-// and where the bitstreams live: /sd/cores/uknc.bin and its two siblings
+// and where the bitstreams live: /sd/cores/uknc.bin and its three siblings
 #define ULTIMA_COREDIR CARD_MOUNTPOINT "/cores"
 
 // the table entry of a core id, or NULL for a core not in the ring
 const ultima_core_t *ultima_core(unsigned char id);
 // the running core's directory on the card ("/sd/korvet"), or the card's
-// root for a core that is not one of the three
+// root for a core that is not one of the four
 const char *ultima_root(void);
 
 // At start, once the card is readable: say which machine came up and

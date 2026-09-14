@@ -5,19 +5,20 @@ this repository.
 
 ## Project overview
 
-**Tang Ultima** puts three machines into one **Tang Nano 20K** (Gowin
+**Tang Ultima** puts four machines into one **Tang Nano 20K** (Gowin
 GW2AR-18C) with a **BL616** (M0S Dock) beside it: **UKNC Nano**
-(`../tang-uknc`, МС0511), **PK8000 Nano** (`../tang-pk8000`, ПК8000) and
-**Korvet Nano** (`../tang-korvet`, ПК8020).  The machines live in those
-three repositories and are not copied here.  This repository holds
+(`../tang-uknc`, МС0511), **PK8000 Nano** (`../tang-pk8000`, ПК8000),
+**Korvet Nano** (`../tang-korvet`, ПК8020) and **ZS-256 Nano**
+(`../tang-zs256`, Scorpion ZS-256 Turbo+, added 14 September 2026).  The
+machines live in those four repositories and are not copied here.  This repository holds
 what makes them one board:
 
 ```
 Makefile      builds each core OUT OF its sibling's tree into build/cores/<core>/,
               gates it with the sibling's own timing check, and packs each to
               bin/<core>.bin - one core a file, no slots
-mnano/        ONE BL616 firmware for all three cores (MiSTeryNano's, merged
-              from the three siblings' copies) plus ultima.c, coreload.c (the
+mnano/        ONE BL616 firmware for all four cores (MiSTeryNano's, merged
+              from the siblings' copies) plus ultima.c, coreload.c (the
               switch) and flashwr.c ("Save to flash")
 onboard/      stage 2 for the board's OWN BL616: the other end of the switch -
               takes a core over a UART, keeps it in its flash, loads it into
@@ -26,7 +27,7 @@ tools/        mkimage.py (one .fs -> the bytes the flash holds, checked);
               mkstage.py (a core in stage 2's form, and the log decoder);
               onboard.sh and efuse_bl616.py for the board's own BL616; the
               fetched toolchain, hard-linked from a sibling on this host, gitignored
-bin/          uknc.fs pk8000.fs korvet.fs, uknc.bin pk8000.bin korvet.bin,
+bin/          <core>.fs and <core>.bin for uknc, pk8000, korvet, zs256, and
               bl616.bin - what a user flashes and what goes on the card;
               onboard/ - the factory and FPGA Partner images for the
               on-board BL616, fetched from upstream, and its backups
@@ -94,7 +95,8 @@ it is still in the three cores.
   MSPI pins with `"MSPI" : true` in the process config, the `--abs`
   option of `gowin_tcl.py`, the PnR-dir argument of `timing_check.py`,
   `mister/coreload.v` and **CMD 11** on pins 69/70, and the now-dormant
-  CMD 9 / `reconfig_n` on pin 48.
+  CMD 9 / `reconfig_n` on pin 48.  ZS-256 Nano was written with all of
+  it from the start.
 - **openFPGALoader is needed once.**  `make flash-image` writes
   `bin/$(DEFAULT_CORE).bin` to address 0 (`--file-type bin -o 0`);
   replug, flash, power-cycle, in that order.  After that the board
@@ -123,24 +125,31 @@ it is still in the three cores.
   the link, when it started listening - and `make onboard-log` (UPDATE
   held) reads them back.  One power-up is one log.
 - **SYS CMD 6 means three things.**  RTC read on the UKNC, RAM poke on
-  the PK8000 and Korvet; `spi.h` defines `SPI_SYS_RTC` and
-  `SPI_SYS_POKE` both as 6, and the firmware only sends each to its own
-  core.  CMD 9, 10 and 11 are the only commands that are the same on
-  all three.
-- **One firmware, three menus, one `core_id`.**  Everything the firmware
-  selects by core is indexed by `core_id` (5 UKNC, 7 PK8000, 8 Korvet):
-  `keymap[]`/`modifier[]` (usb_host.c), `settings_file_name()`,
-  `drivename()`, `ultima_cores[]`.  The UKNC's main form is built at run
-  time (`menu_uknc_main`); its Core entry is `"S,Core,7;"` because its
-  forms are 0..6, the other two have `"S,Core,2;"`.  `make menu-test`
-  walks all three and fails on a form that does not agree with itself.
+  the PK8000 and Korvet (two address bytes), SDRAM poke on the ZS-256
+  (three address bytes, `sys_poke24`, the ROM loader's); `spi.h` defines
+  `SPI_SYS_RTC` and `SPI_SYS_POKE` both as 6, and the firmware only
+  sends each to its own core.  CMD 9, 10 and 11 are the only commands
+  that are the same on all four.
+- **One firmware, four menus, one `core_id`.**  Everything the firmware
+  selects by core is indexed by `core_id` (5 UKNC, 7 PK8000, 8 Korvet, 9
+  ZS-256): `keymap[]`/`modifier[]` (usb_host.c), `settings_file_name()`,
+  `drivename()`, `ultima_cores[]`, the Debug page's byte map.  The UKNC's
+  main form is built at run time (`menu_uknc_main`); its Core entry is
+  `"S,Core,7;"` because its forms are 0..6, the other three have
+  `"S,Core,2;"`.  `make menu-test` walks all four and fails on a form
+  that does not agree with itself.
 - **Slot 5 is browsed, never mounted** - `SDC_SLOT_EXTRA`: the UKNC's
-  "Run SAV:" and the PK8000's "Run .bas:" walk the card through it.
-  `MAX_DRIVES` is 5 (the PK8000 alone had 6); `cwd[]`/`image_name[]` are
-  `MAX_DRIVES + 1`.
+  "Run SAV:", the PK8000's "Run .bas:" and the ZS-256's "ROM:" walk the
+  card through it.  `MAX_DRIVES` is 5 (the PK8000 alone had 6);
+  `cwd[]`/`image_name[]` are `MAX_DRIVES + 1`.  Only the ZS-256 saves
+  slot 5 in its `.ini` (`drive5=`), because `romload.c` loads that file
+  at every start.
 - **The card is per core**: `ultima_root()` is `/sd/<dir>` and the file
   browser's root, the `.ini` sits there, `extrom/` and `RT11SAV` too
-  (`extrom.h`, `rt11sav.h`).  Only `/sd/ultima.ini` and `/sd/cores/` are
+  (`extrom.h`, `rt11sav.h`), and the ZS-256's `zs256.rom` and
+  `gs105a.rom` (`romload.c` - the sibling alone reads them from the
+  card's root).  **The ZS-256 has no ROM in its bitstream**: without
+  `/sd/zs256/zs256.rom` it executes zeros.  Only `/sd/ultima.ini` and `/sd/cores/` are
   in the root - and without `/sd/cores/<name>.bin` there is no switch at
   all, just an OSD saying the file is missing (`make card`).  A switch
   does not touch `ultima.ini`; "Save to flash" does.
@@ -154,7 +163,7 @@ it is still in the three cores.
   our stage 2 (`onboard/`) at 0x40000, and the two coexist -
   openFPGALoader works on a PC, the switch works off one.
   `onboard/protocol.h` and `mnano/coreload_proto.h` are the same file
-  by hand, as are the three `mister/coreload.v`.
+  by hand, as are the four `mister/coreload.v`.
 - **`prompts/` is a transcript, not context.**  Never read it at the
   start of a session; append every exchange as it finishes, in the form
   `.claude/rules/guideline.md` gives.

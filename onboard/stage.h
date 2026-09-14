@@ -28,7 +28,7 @@ struct stage_desc {
   uint32_t length;     /* of the bitstream at STAGE_ADDR + STAGE_DATA_OFF */
   uint32_t crc32;      /* zlib crc32 of those bytes */
   uint32_t idcode;     /* the FPGA the bitstream is for: 0x0000081b */
-  char     name[16];   /* "uknc", "pk8000", "korvet" - for the log */
+  char     name[16];   /* "uknc", "pk8000", "korvet", "zs256" - for the log */
 };
 
 #define LOG_ADDR        0x0FE000u

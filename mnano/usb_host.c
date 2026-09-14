@@ -88,6 +88,7 @@ USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t xbox_buffer[CONFIG_USBHOST_MAX_XB
 #include "uknc.h"
 #include "pk8000.h"
 #include "korvet.h"
+#include "zs256.h"
 
 const unsigned char *keymap[] = {
   NULL,             // id 0: unknown core
@@ -98,7 +99,8 @@ const unsigned char *keymap[] = {
   keymap_uknc,      // id 5: uknc
   keymap_agat9,     // id 6: agat9
   keymap_pk8000,    // id 7: pk8000
-  keymap_korvet     // id 8: korvet
+  keymap_korvet,    // id 8: korvet
+  keymap_zs256      // id 9: zs256
 };
 
 const unsigned char *modifier[] = {
@@ -110,7 +112,8 @@ const unsigned char *modifier[] = {
   modifier_uknc,    // id 5: uknc
   modifier_agat9,   // id 6: agat9
   modifier_pk8000,  // id 7: pk8000
-  modifier_korvet   // id 8: korvet
+  modifier_korvet,  // id 8: korvet
+  modifier_zs256    // id 9: zs256
 };
 
 void kbd_tx(spi_t *spi, unsigned char byte) {
@@ -272,19 +275,32 @@ void kbd_parse(spi_t *spi, hid_report_t *report, struct hid_kbd_state_S *state,
   // prepare for parsing numpad joystick
   if(core_id == CORE_ID_C64||core_id == CORE_ID_VIC20) kbd_num2joy(spi, 0, 0);
   
-  // check if regular keys have changed
+  // check if regular keys have changed.  The report is compared as a
+  // set, not slot by slot: a keyboard packs its six slots, so when the
+  // first of two held keys goes up the second moves down a slot, and a
+  // slot-wise diff sent the core a release and a press for a key that
+  // never moved - the ZS-256's chords counted their shift twice and kept
+  // it held (ZS-256 Nano, 14 Sep 2026; the same change is there).
   for(int i=0;i<6;i++) {
     // C64 uses some keys for joystick emulation
     if(core_id == CORE_ID_C64||core_id == CORE_ID_VIC20) kbd_num2joy(spi, 1, buffer[2+i]);
-    
-    if(buffer[2+i] != state->last_report[2+i]) {
-      // key released?
-      if(state->last_report[2+i] &&
-	 (!osd_is_visible(usb_config.osd) || core_id == CORE_ID_UKNC))
+
+    // key released?  (in the last report, not in this one).  Sent with
+    // the OSD open as well: a key held while F12 opened it would stay
+    // down in the core's matrix otherwise, and a release is always safe
+    // (the UKNC path drops the ones it never forwarded, kbd_tx_uknc)
+    if(state->last_report[2+i]) {
+      int still = 0;
+      for(int j=0;j<6;j++) if(buffer[2+j] == state->last_report[2+i]) still = 1;
+      if(!still)
 	kbd_key(spi, state->last_report[2+i], keymap[core_id][state->last_report[2+i]], 0);
-      
-      // key pressed?
-      if(buffer[2+i])  {
+    }
+
+    // key pressed?  (in this report, not in the last one)
+    if(buffer[2+i])  {
+      int was = 0;
+      for(int j=0;j<6;j++) if(state->last_report[2+j] == buffer[2+i]) was = 1;
+      if(!was) {
 	static unsigned long msg;
 	msg = 0;
 
@@ -317,7 +333,7 @@ void kbd_parse(spi_t *spi, hid_report_t *report, struct hid_kbd_state_S *state,
 	if(msg)
 	  xQueueSendToBackFromISR(xQueue, &msg,  ( TickType_t ) 0);
       }
-    }    
+    }
   }
   memcpy(state->last_report, buffer, 8);
 

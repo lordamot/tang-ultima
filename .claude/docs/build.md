@@ -3,22 +3,22 @@
 What ships prebuilt, so a user needs no toolchain:
 
 ```
-bin/uknc.fs bin/pk8000.fs bin/korvet.fs      the three cores, Gowin's ASCII form
-bin/uknc.bin bin/pk8000.bin bin/korvet.bin   the same packed - what the flash
+bin/<core>.fs   uknc pk8000 korvet zs256     the four cores, Gowin's ASCII form
+bin/<core>.bin                               the same packed - what the flash
                                              holds and what goes on the card
 bin/bl616.bin                                the firmware
 ```
 
 There are no slots: the flash holds one bitstream, at address 0, and the
-card holds all three.  `.claude/docs/coreswitch.md` says why.
+card holds all four.  `.claude/docs/coreswitch.md` says why.
 
 Everything builds here; `tools/` holds the toolchain (`make toolchain`,
 ~8 GB; on this host hard-linked from `../tang-korvet/tools/`, same
-inodes) and the three sibling repositories must sit beside this one.
+inodes) and the four sibling repositories must sit beside this one.
 
 ```
-make cores         all three -> bin/<c>.fs and bin/<c>.bin
-make core-<c>      one of uknc, pk8000, korvet
+make cores         all four -> bin/<c>.fs and bin/<c>.bin
+make core-<c>      one of uknc, pk8000, korvet, zs256
 make card          say which files to copy onto the SD card
 make fw            the firmware -> build/fw/bl616.bin  (copy to bin/ by hand)
 make menu-test     the OSD on the host, every form of every core -> build/menu/*.png
@@ -41,7 +41,9 @@ gw_sh there.  gw_sh writes `impl/` under its cwd, so the PnR output is
 `build/cores/korvet/impl/pnr/korvet.fs` and the sibling's tree is not
 touched.  `../tang-korvet/tools/timing_check.py build/cores/korvet/impl/pnr`
 gates it - the sibling's own rules, its own clocks - and the `.fs` is
-copied to `bin/korvet.fs`.  About 35 s (PK8000) to 60 s (UKNC, Korvet).
+copied to `bin/korvet.fs`.  About 35 s (PK8000) to 60 s (UKNC, Korvet);
+the ZS-256 about 70 s (14 Sep 2026: logic 46%, registers 21%, timing
+clean).
 
 The build reads the sibling's `.gprj` for the file list and its
 `tang/impl/<name>_process_config.json` for the dual-purpose pins.  Both

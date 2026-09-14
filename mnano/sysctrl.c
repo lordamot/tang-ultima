@@ -12,7 +12,7 @@
 unsigned char core_id = 0;
 
 static const char *core_names[] = {
-  "<unset>", "Atari ST", "C64", "UNEON", "AMIGA", "UKNC", "AGAT9", "PK8000", "Korvet"
+  "<unset>", "Atari ST", "C64", "UNEON", "AMIGA", "UKNC", "AGAT9", "PK8000", "Korvet", "ZS-256"
 };
 
 static void sys_begin(spi_t *spi, unsigned char cmd) {
@@ -32,7 +32,7 @@ int sys_status_is_valid(spi_t *spi) {
 
   if((b0 == 0x5c) && (b1 == 0x42)) {
     printf("Core ID: %02x\r\n", core_id);
-    if(core_id < 9) printf("Core: %s\r\n", core_names[core_id]);
+    if(core_id < 10) printf("Core: %s\r\n", core_names[core_id]);
 
     // coldboot status equals core_id on cores not supporting cold
     // boot status
@@ -146,7 +146,21 @@ void sys_reconfig(spi_t *spi) {
   spi_end(spi);
 }
 
-// PK8000/Korvet: the debug window (memcheck.v through sysctrl.v's CMD 7),
+// ZS-256: bytes into the SDRAM (membus.v's loader port through
+// sysctrl.v's CMD 6): three address bytes, high first, then the bytes,
+// the address stepping.  The ROM images go in this way at start
+// (romload.c); the core's own processor is held in reset meanwhile.
+// The same CMD 6 as the PK8000's poke, with one address byte more.
+void sys_poke24(spi_t *spi, unsigned long addr, const unsigned char *buf, int len) {
+  sys_begin(spi, SPI_SYS_POKE);
+  spi_tx_u08(spi, (addr >> 16) & 0xff);
+  spi_tx_u08(spi, (addr >> 8) & 0xff);
+  spi_tx_u08(spi, addr & 0xff);
+  for(int i=0;i<len;i++) spi_tx_u08(spi, buf[i]);
+  spi_end(spi);
+}
+
+// PK8000/Korvet/ZS-256: the debug window (memcheck.v through sysctrl.v's CMD 7),
 // eight bytes a transaction - the core answers one strobe behind, so
 // the byte after the offset is already the first of them
 void sys_get_debug(spi_t *spi, unsigned char *buf, int len) {

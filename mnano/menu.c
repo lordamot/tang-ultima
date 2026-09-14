@@ -11,6 +11,7 @@
 #include "extrom.h"
 #include "rt11sav.h"
 #include "bas.h"
+#include "romload.h"
 #include "ultima.h"
 #include "coreload.h"
 #include "menu.h"
@@ -82,7 +83,7 @@ menu_variable_t variables_agat9[] = {
 // ------------------------------------------------------------------
 // ---------------------  Tang Ultima: the Core form -----------------
 // ------------------------------------------------------------------
-// One form on every core's main menu, the same text on all three: a 'C'
+// One form on every core's main menu, the same text on all four: a 'C'
 // entry a machine, its option field the core id (sysctrl.h).  Selecting
 // the one that is running does nothing; any other is sent from the card
 // to the board's own BL616, which loads it into the FPGA's SRAM, and the
@@ -97,6 +98,7 @@ static const char core_form_ultima[] =
   "C,UKNC,5;"                           // МС0511 УКНЦ
   "C,PK8000,7;"                         // ПК8000 Сура
   "C,Korvet,8;"                         // ПК8020 Корвет
+  "C,ZS-256,9;"                         // Scorpion ZS-256 Turbo+
   "C,Save to flash,0;";                 // the running one -> flash address 0
 
 // the form's text, for the host test to know it is on every core
@@ -423,6 +425,92 @@ menu_variable_t variables_korvet[] = {
   { 'y', { 0 }},    // AY module off
   { 'M', { 1 }},    // Mouse on
   { 'm', { 0 }},    // Graphics RAM 192K
+  { 'p', { 0 }},    // Floppy A writable
+  { 'q', { 0 }},    // Floppy B writable
+  { 'k', { 0 }},    // Floppy C writable
+  { 'l', { 0 }},    // Floppy D writable
+  { '\0',{ 0 }}
+};
+
+// ------------------------------------------------------------------
+// ---------------------  ZS-256 menu ----------------------------
+// ------------------------------------------------------------------
+// The main form is the four floppy slots, the SMUC's disk, the reset,
+// the Magic button, one "Hardware" form for the ROM file and the
+// switches, an "About" text, the "Debug" window and "Save settings".
+// Every switch is a letter sysctrl.v decodes; the image slots are
+// sd_card.v's (sdc.c drivename()), but the ROM's slot is
+// SDC_SLOT_ROM, which is browsed here and loaded by romload.c.
+
+static const char main_form_zs256[] =
+  "ZS-256 Nano,;"                       // main form has no parent
+  // --------
+  "F,Floppy A:,0|trd;"                  // slots 0..3: the Beta Disk's four drives
+  "F,Floppy B:,1|trd;"
+  "F,Floppy C:,2|trd;"
+  "F,Floppy D:,3|trd;"
+  "F,HDD:,4|img+hdd;"                   // slot 4: the SMUC's disk
+  "B,Reset,R;"                          // system reset
+  "B,Magic (NMI),h;"                    // the Magic button
+  "S,Hardware,1;"                       // Hardware submenu is form 1
+  "S,Core,2;"                           // core_form_ultima: switch the machine
+  "T,About,;"                           // the about_zs256 text
+  "T,Debug,;"                           // the debug window (menu_debug_open)
+  "B,Save settings,S;";
+
+// 15 entries: the form scrolls (menu_entry_go keeps four rows in view).
+static const char hardware_form_zs256[] =
+  "Hardware,0|8;"                       // return to the main form, entry 8
+  // --------
+  "F,ROM:,5|rom;"                       // SDC_SLOT_ROM: the ROM image, sent by romload.c
+  "L,Turbo:,Ports|On|Off,T;"            // 7 MHz as IN 7FFD/1FFD say, always, never
+  "L,RAM:,256K|1024K,m;"                // 1FFD bits 7:6 extend the page (ZS-1024)
+  "L,Floppy:,Off|On,f;"                 // the Beta Disk
+  "L,SMUC:,Off|On,u;"                   // IDE, clock, NVRAM
+  "L,General Sound:,Off|On,g;"
+  "L,AY:,Off|On,y;"
+  "L,AY stereo:,ABC|ACB|Mono,s;"
+  "L,Joystick:,Off|Kempston,j;"
+  "L,Mouse:,Off|Kempston,M;"
+  "L,Volume:,Mute|33%|66%|100%,A;"
+  "L,Floppy A prot.:,Off|On,p;"         // write protection
+  "L,Floppy B prot.:,Off|On,q;"
+  "L,Floppy C prot.:,Off|On,k;"
+  "L,Floppy D prot.:,Off|On,l;";
+
+static const char *forms_zs256[] = {
+  main_form_zs256,
+  hardware_form_zs256,
+  core_form_ultima
+};
+
+// the "About" text, one paragraph a string, wrapped to the OSD's width
+// when it is opened (menu_text_open); "" is an empty line
+static const char *about_zs256[] = {
+  "ZS-256 Nano - the Scorpion ZS-256 Turbo+ on a Tang Nano 20K",
+  "",
+  "Authors: Sergei Lemeshev, Claude Code",
+  "",
+  "Built on Korvet Nano, PK8000 Nano and UKNC Nano (Alexey Gurov) and on MiSTeryNano (Till Harbaum)",
+  "The Z80 is tv80 (Guy Hutchison, MIT); WD1793 and YM2149 cores by MikeJ and Sorgelig (MiSTer)",
+  "The machine is Sergey Zonov's (Scorpion, St. Petersburg, 1996), from the schematic restored by romychs and the Black Edition board; ProfROM, SMUC and General Sound as Unreal Speccy has them",
+  "General Sound's firmware is Stinger's (X-Trade, 1997), gs105a",
+  NULL
+};
+
+// variable ids must match the ones in the menu string, and sysctrl.v's
+// (buttons - 'R', 'S', 'h' - are not variables; 'P' is sent by romload.c)
+menu_variable_t variables_zs256[] = {
+  { 'A', { 1 }},    // Volume 33%
+  { 'T', { 0 }},    // Turbo as the ports say
+  { 'm', { 0 }},    // RAM 256K
+  { 'f', { 1 }},    // Floppy on
+  { 'u', { 1 }},    // SMUC on
+  { 'g', { 1 }},    // General Sound on
+  { 'y', { 1 }},    // AY on
+  { 's', { 0 }},    // AY stereo ABC
+  { 'j', { 1 }},    // Kempston joystick on
+  { 'M', { 1 }},    // Kempston mouse on
   { 'p', { 0 }},    // Floppy A writable
   { 'q', { 0 }},    // Floppy B writable
   { 'k', { 0 }},    // Floppy C writable
@@ -770,13 +858,14 @@ static const char *settings_file[] = {
   NULL,                            // core id = 5  CORE_ID_UKNC   - ultima_cores[] (below)
   CARD_MOUNTPOINT "/agat9.ini",    // core id = 6  CORE_ID_AGAT9
   NULL,                            // core id = 7  CORE_ID_PK8000 - ultima_cores[]
-  NULL                             // core id = 8  CORE_ID_KORVET - ultima_cores[]
+  NULL,                            // core id = 8  CORE_ID_KORVET - ultima_cores[]
+  NULL                             // core id = 9  CORE_ID_ZS256  - ultima_cores[]
 };
 
 // Returns NULL for a core with no settings file of its own, which both
-// callers check: opening NULL would take FatFs down.  The three cores of
+// callers check: opening NULL would take FatFs down.  The four cores of
 // Tang Ultima keep theirs in their own directory (ultima.h): /sd/uknc/
-// uknc.ini, /sd/pk8000/pk8000.ini, /sd/korvet/korvet.ini.
+// uknc.ini, /sd/pk8000/pk8000.ini, /sd/korvet/korvet.ini, /sd/zs256/zs256.ini.
 static const char *settings_file_name(void) {
   static char name[64];
   const ultima_core_t *c = ultima_core(core_id);
@@ -910,10 +999,13 @@ static void menu_settings_save(menu_t *menu) {
       f_puts(str, &file);
     }
 
-    // write image file names
+    // write image file names - and, on the ZS-256, the browse-only slot
+    // after them, since the ROM file it names is loaded at start
+    // (romload.c); the UKNC's and PK8000's extra slot is not saved
     f_puts("\n; image files\n", &file);
 
-    for(int drive=0;drive<MAX_DRIVES;drive++) {
+    int slots = (core_id == CORE_ID_ZS256) ? MAX_DRIVES + 1 : MAX_DRIVES;
+    for(int drive=0;drive<slots;drive++) {
       char *cwd = sdc_get_cwd(drive);
       char *image = sdc_get_image_name(drive);
 
@@ -969,6 +1061,9 @@ menu_t *menu_init(u8g2_t *u8g2)
   } else if(core_id == CORE_ID_KORVET) {
     menu.vars = variables_korvet;
     menu.forms = forms_korvet;
+  } else if(core_id == CORE_ID_ZS256) {
+    menu.vars = variables_zs256;
+    menu.forms = forms_zs256;
   } else {
     menu.vars = NULL;
     menu.forms = NULL;
@@ -1069,6 +1164,9 @@ menu_t *menu_init(u8g2_t *u8g2)
   // the ExtROM controller's brain: its phase-1 ROM into the core and its
   // mount table read, before the machine starts (Korvet)
   if(core_id == CORE_ID_KORVET) extrom_init(menu.osd->spi);
+
+  // the ROM images into the core, before the machine starts (ZS-256)
+  if(core_id == CORE_ID_ZS256) rom_boot(menu.osd->spi);
 
   // release the core's reset, so it can start
   // and cold reset the core, just in case ...
@@ -1180,6 +1278,13 @@ static void menu_variable_set(menu_t *menu, const char *s, int val) {
   if(core_id == CORE_ID_KORVET) {
     // the processor and the graphics RAM's size take effect at a reset
     if(id == 'c' || id == 'm') {
+      sys_set_val(menu->osd->spi, 'R', 1);
+      sys_set_val(menu->osd->spi, 'R', 0);
+    }
+  }
+  if(core_id == CORE_ID_ZS256) {
+    // the RAM's size takes effect at a reset
+    if(id == 'm') {
       sys_set_val(menu->osd->spi, 'R', 1);
       sys_set_val(menu->osd->spi, 'R', 0);
     }
@@ -1504,14 +1609,37 @@ static void menu_text_wrap(menu_t *menu, const char *para) {
   if(len) menu_text_add(menu, line);
 }
 
-// The "Debug" page: 32 bytes from the core's memcheck.v (sysctrl.v's
-// CMD 7), formatted here.  The byte map is memcheck.v's `dbg`.
+// The "Debug" page: 32 bytes from the core's debug bus (sysctrl.v's
+// CMD 7), formatted here.  The byte map is memcheck.v's `dbg` on the
+// PK8000 and the Korvet, top.v's on the ZS-256, so the lines are per core.
 static void menu_text_open(menu_t *menu, const char *title, const char **paras);
 static void menu_debug_open(menu_t *menu, const char *title) {
   static unsigned char d[32];
   static char line[8][40];
   static const char *paras[9];
   sys_get_debug(menu->osd->spi, d, sizeof(d));
+  if(core_id == CORE_ID_ZS256) {
+    // top.v's dbg bus: 1 {init, por}, 2 {late, fail, done}, 3 the disks,
+    // 5 the last opcode, 7:6 its address, 8 {halt_n, iff1}, 9 dos,
+    // 10 1FFD, 11 7FFD, 12 turbo, 13 the ProfROM bank, 14 the attribute,
+    // 15 port FE, 17 resets, 19:18 fetches, 23:22 General Sound's PC
+    snprintf(line[0], sizeof(line[0]), "por %d init %d bist %d fail %d late %d",
+             d[1]&1, (d[1]>>1)&1, d[2]&1, (d[2]>>1)&1, (d[2]>>2)&1);
+    snprintf(line[1], sizeof(line[1]), "pc %02X%02X op %02X halt %d ei %d resets %u",
+             d[7], d[6], d[5], !((d[8]>>2)&1), (d[8]>>1)&1, d[17]);
+    snprintf(line[2], sizeof(line[2]), "7FFD %02X 1FFD %02X FE %02X dos %d turbo %d",
+             d[11], d[10], d[15], d[9]&1, d[12]&1);
+    snprintf(line[3], sizeof(line[3]), "ProfROM bank %d, attr %02X, m1 %u",
+             d[13]&3, d[14], d[18] | d[19]<<8);
+    snprintf(line[4], sizeof(line[4]), "floppies %d%d%d%d hdd %d",
+             (d[3]>>1)&1, (d[3]>>2)&1, (d[3]>>3)&1, (d[3]>>4)&1, (d[3]>>5)&1);
+    snprintf(line[5], sizeof(line[5]), "GS pc %02X%02X", d[23], d[22]);
+    snprintf(line[6], sizeof(line[6]), "ROM %lu KB, GS ROM %lu KB", rom_size_zs / 1024, rom_size_gs / 1024);
+    for(int i=0;i<7;i++) paras[i] = line[i];
+    paras[7] = NULL;
+    menu_text_open(menu, title, paras);
+    return;
+  }
   unsigned f = d[0];
   snprintf(line[0], sizeof(line[0]), "por %d init %d rst %d bist %d fail %d late %d",
            (f>>7)&1, (f>>6)&1, (f>>5)&1, (f>>4)&1, (f>>3)&1, (f>>2)&1);
@@ -1740,6 +1868,14 @@ static void menu_fileselector(menu_t *menu, int event) {
 	menu_goto_form(menu, parent, fsel_entry);
 	osd_enable(menu->osd, OSD_INVISIBLE);
 	bas_run(menu->osd->spi, path);
+      } else if(drive == SDC_SLOT_EXTRA && core_id == CORE_ID_ZS256) {
+	// ZS-256: the ROM, remembered for the settings, sent into the core (romload.c)
+	char path[strlen(sdc_get_cwd(drive)) + strlen(entry->name) + 2];
+	sprintf(path, "%s/%s", sdc_get_cwd(drive), entry->name);
+	sdc_set_image_name(drive, entry->name);
+	menu_goto_form(menu, parent, fsel_entry);
+	rom_select(menu->osd->spi, path);
+	osd_enable(menu->osd, OSD_INVISIBLE);
       } else {
 	// request insertion of this image
 	sdc_image_open(drive, entry->name);
@@ -1931,6 +2067,7 @@ static void menu_select(menu_t *menu) {
     else if(core_id == CORE_ID_UKNC)      menu_text_open(menu, label, about_uknc);
     else if(core_id == CORE_ID_PK8000)    menu_text_open(menu, label, about_pk8000);
     else if(core_id == CORE_ID_KORVET)    menu_text_open(menu, label, about_korvet);
+    else if(core_id == CORE_ID_ZS256)     menu_text_open(menu, label, about_zs256);
   } break;
 
   case 'C': {

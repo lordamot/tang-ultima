@@ -2,7 +2,7 @@
   ultima.c - the core switch of Tang Ultima.  See ultima.h.
 
   The mechanism, in one paragraph: the flash holds one bitstream, at
-  address 0, and that is the machine the board is.  The three machines sit
+  address 0, and that is the machine the board is.  The four machines sit
   on the card as packed bitstreams, /sd/cores/<name>.bin.  Switching means
   writing the wanted one to address 0 - flashwr.c, through flashwr.v and
   the MSPI pins the FPGA hands to user logic after configuration - and
@@ -43,12 +43,13 @@
 #include <task.h>
 #endif
 
-// The three.  The Makefile's CORES says the same thing; the order is only
+// The four.  The Makefile's CORES says the same thing; the order is only
 // cosmetic now that there is no ring to walk.
 const ultima_core_t ultima_cores[ULTIMA_CORES] = {
   { CORE_ID_UKNC,   "UKNC",   "uknc",   "uknc.ini"   },
   { CORE_ID_PK8000, "PK8000", "pk8000", "pk8000.ini" },
   { CORE_ID_KORVET, "Korvet", "korvet", "korvet.ini" },
+  { CORE_ID_ZS256,  "ZS-256", "zs256",  "zs256.ini"  },
 };
 
 const ultima_core_t *ultima_core(unsigned char id) {

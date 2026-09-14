@@ -10,7 +10,7 @@
   bitmap under the directory given as the first argument (tools/osd_png.py
   makes PNGs of them).
 
-  Three cores, one firmware, so the walk is generic and runs once per
+  Four cores, one firmware, so the walk is generic and runs once per
   core: the main form is read, every 'S' form is entered and left by its
   title (and checked to come back to the entry that opened it), every
   'L' value is stepped right and left and lands where it started with
@@ -20,8 +20,8 @@
   every core's main form, marks the running core, selecting the running
   core does nothing, selecting another records the switch.  The
   per-core detail (the UKNC's RTC form, the Korvet's Debug page, the
-  PK8000's tape) is in the sibling repositories' own tests; what this
-  one is for is that the three sets of forms still agree with their
+  PK8000's tape, the ZS-256's ROM) is in the sibling repositories' own
+  tests; what this one is for is that the four sets of forms still agree with their
   cores after being put into one file, and that the Core form is right.
 */
 #include <stdio.h>
@@ -36,6 +36,7 @@
 #include "extrom.h"
 #include "rt11sav.h"
 #include "bas.h"
+#include "romload.h"
 #include "ultima.h"
 #include "menu.h"
 
@@ -51,6 +52,11 @@ static int extrom_inits;
 void extrom_init(spi_t *spi) { (void)spi; extrom_inits++; }
 static int bas_runs;
 int bas_run(spi_t *spi, const char *path) { (void)spi; (void)path; bas_runs++; return 0; }
+static int rom_boots, rom_selects;
+static char rom_selected[256];
+unsigned long rom_size_zs = 65536, rom_size_gs = 32768;
+void rom_boot(spi_t *spi) { (void)spi; rom_boots++; }
+void rom_select(spi_t *spi, const char *path) { (void)spi; rom_selects++; snprintf(rom_selected, sizeof(rom_selected), "%s", path); }
 int rt11sav_make(const char *dir, const char *name, unsigned date, char *err, int errlen) {
   (void)dir; (void)name; (void)date; snprintf(err, errlen, "no card"); return -1;
 }
@@ -229,6 +235,24 @@ static void walk_entry(menu_t *menu, int form, int n, int depth) {
           name, readdir_exts ? readdir_exts : "(null)", (int)(strchr(exts, ';') - exts), exts);
     CHECK(set_n == sends, "%s: opening a selector sent %d values", name, set_n - sends);
     if(depth == 0 && n == 1) shot("selector");
+    if(slot == SDC_SLOT_EXTRA && core_id == CORE_ID_ZS256) {
+      // the ROM slot: a file picked is not mounted, it goes to the core by
+      // romload.c, from the core's own directory, and the OSD closes
+      int opens = open_n;
+      rom_selects = 0; osd_visible = 1;
+      goto_entry(menu, 2);                  // GAME.rom
+      menu_do(menu, MENU_EVENT_SELECT);
+      char want[80];
+      snprintf(want, sizeof(want), "%s/GAME.rom", ultima_root());
+      CHECK(open_n == opens && rom_selects == 1 && !strcmp(rom_selected, want) && !osd_visible,
+            "ROM: opened %d images, rom_select %d times with '%s' (want %s), osd %d",
+            open_n - opens, rom_selects, rom_selected, want, osd_visible);
+      CHECK(menu->form == form && menu->entry == n, "ROM: back to form %d entry %d", menu->form, menu->entry);
+      CHECK(image_name[slot] && !strcmp(image_name[slot], "GAME.rom"), "ROM: slot %d remembers '%s'", slot, image_name[slot] ? image_name[slot] : "(null)");
+      sdc_set_image_name(slot, NULL);
+      menu_do(menu, MENU_EVENT_SHOW);
+      break;
+    }
     while(menu->entry) menu_do(menu, MENU_EVENT_UP);
     menu_do(menu, MENU_EVENT_SELECT);
     CHECK(menu->form == form && menu->entry == n, "%s: back from the selector: form %d entry %d", name, menu->form, menu->entry);
@@ -313,12 +337,12 @@ static void check_core_form(menu_t *menu, int core_form) {
   CHECK(!strcmp(menu->forms[core_form], core_form_ultima_text()), "form %d is not the Core form", core_form);
   goto_entry(menu, n);
   menu_do(menu, MENU_EVENT_SELECT);
-  CHECK(menu->form == core_form && menu->entries == 5, "Core form: form %d, %d entries", menu->form, menu->entries);
+  CHECK(menu->form == core_form && menu->entries == ULTIMA_CORES + 2, "Core form: form %d, %d entries", menu->form, menu->entries);
   shot("core");
 
-  // the running core is one of the three, and selecting it does nothing
+  // the running core is one of the four, and selecting it does nothing
   int running = 0;
-  for(int i=1;i<=3;i++) {
+  for(int i=1;i<=ULTIMA_CORES;i++) {
     const char *e = entry_at(menu->forms[core_form], i);
     if(field_int(e, 2) == core_id) {
       running = i;
@@ -341,12 +365,12 @@ static void check_core_form(menu_t *menu, int core_form) {
   shot("core-switch");
 
   // the id on every machine entry is a core
-  for(int i=1;i<=3;i++)
+  for(int i=1;i<=ULTIMA_CORES;i++)
     CHECK(ultima_core(field_int(entry_at(menu->forms[core_form], i), 2)) != NULL, "Core entry %d names no core", i);
 
-  // the fourth is "Save to flash", id 0, and selecting it saves the running core
-  CHECK(field_int(entry_at(menu->forms[core_form], 4), 2) == 0, "Core entry 4 is not the save entry");
-  goto_entry(menu, 4);
+  // the last is "Save to flash", id 0, and selecting it saves the running core
+  CHECK(field_int(entry_at(menu->forms[core_form], ULTIMA_CORES + 1), 2) == 0, "Core entry %d is not the save entry", ULTIMA_CORES + 1);
+  goto_entry(menu, ULTIMA_CORES + 1);
   ultima_test_installed = 0;
   menu_do(menu, MENU_EVENT_SELECT);
   CHECK(ultima_test_installed == core_id, "Save to flash saved %02x, running %02x", ultima_test_installed, core_id);
@@ -361,7 +385,7 @@ static void check_core_form(menu_t *menu, int core_form) {
 static void run_core(unsigned char id, const char *prefix, const char *title, int core_form) {
   core_id = id;
   shot_prefix = prefix;
-  set_n = 0; open_n = 0; extrom_inits = 0; bas_runs = 0;
+  set_n = 0; open_n = 0; extrom_inits = 0; bas_runs = 0; rom_boots = 0;
   for(int i=0;i<=MAX_DRIVES;i++) { free(cwd[i]); cwd[i] = NULL; free(image_name[i]); image_name[i] = NULL; }
 
   menu_t *menu = menu_init(&u8g2);
@@ -378,6 +402,7 @@ static void run_core(unsigned char id, const char *prefix, const char *title, in
   CHECK(set_count('R') == 2 && set_last('R') == 0, "start reset: R sent %d times, last %d", set_count('R'), set_last('R'));
   CHECK(open_n == 0, "an image was opened at start with no settings");
   CHECK(extrom_inits == (id == CORE_ID_KORVET), "extrom_init called %d times on core %02x", extrom_inits, id);
+  CHECK(rom_boots == (id == CORE_ID_ZS256), "rom_boot called %d times on core %02x", rom_boots, id);
 
   // the settings file is the core's own, under its directory
   const ultima_core_t *c = ultima_core(id);
@@ -405,6 +430,7 @@ int main(int argc, char **argv) {
   run_core(CORE_ID_UKNC,   "uknc",   "UKNC Nano,;",   7);
   run_core(CORE_ID_PK8000, "pk8000", "PK8000 Nano,;", 2);
   run_core(CORE_ID_KORVET, "korvet", "Korvet Nano,;", 2);
+  run_core(CORE_ID_ZS256,  "zs256",  "ZS-256 Nano,;", 2);
 
   printf("menu-test: %d screens in %s, %d error(s)\n", shots, outdir, errors);
   return errors ? 1 : 0;

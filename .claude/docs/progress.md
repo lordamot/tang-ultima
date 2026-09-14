@@ -542,6 +542,72 @@ it** - the board runs off a charger or a power bank, and the PC-side
 programmer is kept.  If that changes: fetch the bootloader sha-pinned,
 put stage 2 at 0x20000 as well as 0x40000, add the two targets.
 
+## The fourth core, 14 September 2026 - the ZS-256, built and walked, not on a board
+
+`../tang-zs256` (ZS-256 Nano: Sergey Zonov's Scorpion ZS-256 Turbo+,
+started 13 Sep 2026 on Korvet Nano's method, and written to be a core
+of this repository from the start) is the fourth core.  Nothing in the
+switch changed for it; what changed is every place the number three
+was written down.
+
+What was verified, and how:
+
+- **The ZS-256 has all the reconfig support already**: its
+  `mister/coreload.v` and `mister/flashwr.v` are byte-identical to the
+  other three siblings' (cmp), its `sysctrl.v` decodes CMD 10 and 11
+  and answers CMD 0 with id 9, `gowin_tcl.py --abs` and the PnR-dir
+  argument of `timing_check.py` are there, `"MSPI": true` is in its
+  process config.  **Nothing in the sibling's tree was edited**; its
+  `git status` is what it was.
+- **`make core-zs256` builds out of the sibling's tree**: about 70 s,
+  logic 9334/20736 (46%), registers 21%, timing gate clean (0 setup, 0
+  hold violated over clk27, clk42, the two PLLs and spi_clk).  The pin
+  report has `mspi_*` on 59/60/61/62 and `uart_tx`/`uart_rx` on 69/70.
+  `bin/zs256.bin` is 907 418 bytes like the other three, byte-identical
+  to Gowin's own `impl/pnr/zs256.bin`, `a5 c3` at 0x16, IDCODE
+  `0x0000081b` at 0x1c.
+- **`make lint-zs256`**: ok.
+- **`make fw` builds**: 469 296 bytes (was 465 952), copied to
+  `bin/bl616.bin`.  What went in: `CORE_ID_ZS256` 9, `sys_poke24()`
+  (CMD 6 with three address bytes - the ZS-256's meaning of the
+  command; the firmware only sends it to core 9), `zs256.h` verbatim,
+  `romload.c/h` with the default ROM paths moved from the card's root
+  to `/sd/zs256/`, the ZS-256's forms with `S,Core,2`, About,
+  variables, `rom_boot()` at `menu_init`, `rom_select()` from the
+  file selector's slot 5, its own Debug page byte map, 'm' resetting,
+  `drivename()` "A B C D HDD", `ultima_cores[]` fourth entry,
+  `ULTIMA_CORES` 4, the Core form's fourth `C` entry.  The settings
+  file saves `drive5=` on the ZS-256 only - the ROM file it names is
+  loaded at every start, whereas the UKNC's and PK8000's slot 5 is a
+  one-shot browser.
+- **ZS-256 Nano's key-report fix is in `usb_host.c` for every core**:
+  the six slots of a USB keyboard report are compared as a set, not
+  slot by slot (a keyboard packs its slots, so a release of the first
+  of two held keys moved the second down a slot and the old compare
+  sent a release and a press for a key that never moved - the
+  ZS-256's chords counted their shift twice); and a release is sent
+  with the OSD open too, so a key held while F12 opened it does not
+  stay down in the core's matrix.  The UKNC's `kbd_tx_uknc` already
+  dropped the releases it never forwarded, so that path is unchanged
+  in effect.  **Not seen on a board on any core.**
+- **`make menu-test`: 40 screens, 0 errors** over four cores (was 28
+  over three): every ZS-256 form walked, the Core form six entries on
+  every core with the running one marked and "Save to flash" last, and
+  a new check that picking a file in the ZS-256's ROM slot calls
+  `rom_select()` with `/sd/zs256/GAME.rom`, mounts nothing, remembers
+  the name in slot 5 and closes the OSD.
+
+What was NOT verified - and none of it can be here:
+
+- The ZS-256 on a board at all under this firmware: switched to,
+  saved to flash, its ROMs loaded from `/sd/zs256/`, its keyboard,
+  its Debug page.  Its own repository says "nothing has been on a
+  board yet" for the machine itself (its `progress.md`), so a ZS-256
+  that does not come up is that before it is anything here.
+- `/sd/zs256/zs256.rom` and `gs105a.rom` must be put on the card by
+  hand (`make card` says so); the machine executes zeros without them.
+- The key-report change on the other three cores.
+
 ## Defects
 
 1. **RECONFIG_N driven from user logic does not reload this FPGA.**  Not in

@@ -20,6 +20,7 @@
 #define CORE_ID_AGAT9    0x06
 #define CORE_ID_PK8000   0x07
 #define CORE_ID_KORVET   0x08
+#define CORE_ID_ZS256    0x09
 #define CORE_ID_VIC20    0x10
 
 extern unsigned char core_id;
@@ -38,6 +39,10 @@ typedef struct {
   unsigned char month, date, hour, min, sec, dow;
 } sys_rtc_t;
 void sys_get_rtc(spi_t *, sys_rtc_t *);
+
+// ZS-256: bytes into the SDRAM at a 24-bit byte address (sysctrl.v's CMD 6,
+// three address bytes where the PK8000's poke has two) - romload.c
+void sys_poke24(spi_t *, unsigned long addr, const unsigned char *buf, int len);
 
 // tang-ultima: reload the FPGA from the next image in the flash (CMD 9)
 void sys_reconfig(spi_t *);

@@ -289,8 +289,10 @@ static const char *drivename(int drive) {
   static const char *uknc[]   = { "FDD0", "FDD1", "FDD2", "FDD3", "HDD" };
   static const char *pk8000[] = { "Tape", "A", "B", "HDD", "ROM" };
   static const char *korvet[] = { "A", "B", "C", "D", "ROM" };
+  static const char *zs256[]  = { "A", "B", "C", "D", "HDD" };
   if(core_id == CORE_ID_UKNC)   return uknc[drive];
   if(core_id == CORE_ID_PK8000) return pk8000[drive];
+  if(core_id == CORE_ID_ZS256)  return zs256[drive];
   return korvet[drive];
 }
 

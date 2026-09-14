@@ -6,18 +6,19 @@
 // sd_card.v's image slots, five on every core here (what each is,
 // drivename() in sdc.c): the UKNC's four floppies and the IDE image, the
 // PK8000's tape, two floppies, hard disk and ROM disk, the Korvet's four
-// floppies and the ОПТС ROM.
+// floppies and the ОПТС ROM, the ZS-256's four floppies and the SMUC's disk.
 #define MAX_DRIVES  5
 
 // One more slot that is browsed but never mounted: the UKNC's "Run SAV:"
-// (rt11sav.c) and the PK8000's "Run .bas:" (bas.c) walk the card through
-// it, so it has a working directory and a remembered name like a drive,
+// (rt11sav.c), the PK8000's "Run .bas:" (bas.c) and the ZS-256's ROM
+// file (romload.c) walk the card through it, so it has a working directory and a remembered name like a drive,
 // but no open image, no core-side drive and no line in the settings file.
 #define SDC_SLOT_EXTRA  MAX_DRIVES
 #define SDC_SLOT_SAV    SDC_SLOT_EXTRA
+#define SDC_SLOT_ROM    SDC_SLOT_EXTRA
 
 // fatfs mounts the card under /sd; each core browses its own directory
-// below it (ultima.h: /sd/uknc, /sd/pk8000, /sd/korvet)
+// below it (ultima.h: /sd/uknc, /sd/pk8000, /sd/korvet, /sd/zs256)
 #define CARD_MOUNTPOINT "/sd"
 
 typedef struct {

@@ -16,17 +16,18 @@
 // CMD 6 means something different to each core; the firmware only ever
 // sends it to the core it is meant for (sysctrl.c, by core_id)
 #define SPI_SYS_RTC       6   // UKNC: read the Kakave+ clock (sysctrl.v CMD 6)
-#define SPI_SYS_POKE      6   // PK8000: an address and bytes into the machine's RAM (bas.c)
-#define SPI_SYS_DEBUG     7   // PK8000/Korvet: the debug window (memcheck.v) - an offset, then bytes
+#define SPI_SYS_POKE      6   // PK8000: an address and bytes into the machine's RAM (bas.c);
+                              // ZS-256: the same with THREE address bytes, into the SDRAM (romload.c)
+#define SPI_SYS_DEBUG     7   // PK8000/Korvet/ZS-256: the debug window - an offset, then bytes
 #define SPI_SYS_EXTROM    8   // Korvet: the ExtROM channel (extrom.v) - a sub-command, then bytes
-#define SPI_SYS_RECONFIG  9   // all three: A5h after it pulses RECONFIG_N.  Dormant - the pulse
+#define SPI_SYS_RECONFIG  9   // all four: A5h after it pulses RECONFIG_N.  Dormant - the pulse
                               // does not reload this FPGA (docs/progress.md); kept because a
                               // wire from pin 48 to TP1 would make it work
-#define SPI_SYS_FLASH    10   // all three: the configuration flash, through flashwr.v - a
+#define SPI_SYS_FLASH    10   // all four: the configuration flash, through flashwr.v - a
                               // sub-command, then its bytes (flashwr.c).  "Save to flash":
                               // the running machine is written to flash address 0, which
                               // is what power-up loads.
-#define SPI_SYS_CORELOAD 11   // all three: the UART to the board's own BL616, through
+#define SPI_SYS_CORELOAD 11   // all four: the UART to the board's own BL616, through
                               // coreload.v - a sub-command, then its bytes (coreload.c).
                               // This is how a core switch happens: the wanted machine is
                               // sent to that chip and it loads the FPGA's SRAM over JTAG.
