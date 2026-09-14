@@ -99,9 +99,10 @@ before researching it yourself.
 - State what was not checked.  As of 13 September 2026 the switch itself
   **is** checked on a board: a core installed from the OSD, read back over
   JTAG byte-identical, and booted.  What is NOT: how long an install takes,
-  the loading rate, the other cores installed and booted, the ZS-256 on a
-  board at all under this firmware (added 14 Sep 2026), and every
-  machine's own behaviour under this firmware rather than its own.
+  the loading rate, the other cores installed and booted, "Save to flash"
+  with the ZS-256 (added 14 Sep 2026, seen running on the board that
+  evening), and every machine's own behaviour under this firmware rather
+  than its own.
 
 ## The prompts/ folder
 

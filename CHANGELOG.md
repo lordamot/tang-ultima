@@ -11,13 +11,13 @@
   `keymap_zs256`, its forms, About, Debug page and "ROM:" selector in
   the firmware; the Core form has four machines and "Save to flash".
   Built, timed, linted, walked on the host (`make menu-test`, 40
-  screens, 0 errors); **not seen on a board**.
+  screens, 0 errors), and seen working on the board the same evening.
 - The USB keyboard report is compared as a set of six keys, not slot by
   slot (from ZS-256 Nano, 14 Sep 2026): a keyboard packs its slots, so
   releasing the first of two held keys moved the second and the old
   compare sent the core a release and a press for a key that never
   moved.  A release now reaches the core with the OSD open too.  All
-  cores; not seen on a board.
+  cores; seen on the ZS-256, not reported on the other three.
 - README brought to the current mechanism (it still described
   MultiBoot).
 - USB keyboard lost until a power cycle - the likely cause removed, not

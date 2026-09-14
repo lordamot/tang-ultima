@@ -3,12 +3,14 @@
 **The ZS-256 (`../tang-zs256`) is integrated as the fourth core** -
 built out of its tree, timing clean, linted, its menu walked on the
 host with the other three, the firmware built and copied to
-`bin/bl616.bin` (469 296 bytes).  **None of it has been on a board**:
-the ZS-256 has not been switched to, saved to flash, or run under this
-firmware; nor has the firmware with it been flashed to the dock.  The
-night handover below is still the physical state of the board.
+`bin/bl616.bin` (469 296 bytes) - **and seen working on the board the
+same evening** (the user: "it works").  So the dock now carries this
+firmware and the card `/cores/zs256.bin` and `/zs256/` with its ROMs;
+the night handover below is otherwise the physical state of the board.
+Not itemised in the report: "Save to flash" with the ZS-256, and the
+key-report change on the other three machines.
 
-What a board session would do, in order: `make card` (four `.bin`s into
+What a board session did, in order: `make card` (four `.bin`s into
 `/cores/`, and `/zs256/zs256.rom` + `gs105a.rom` from
 `../tang-zs256/soft/rom/` by hand - the machine executes zeros without
 them); `make flash-mcu` (the dock alone on the PC; `bin/bl616.bin` is
@@ -16,7 +18,7 @@ current); switch to the ZS-256 from the Core form off PC power; F12 and
 the Debug page (`ROM 64 KB, GS ROM 32 KB` on its last line says the
 ROMs arrived).  A ZS-256 that does not come up is first a question for
 its own repository, whose `progress.md` says nothing of it has been on
-a board yet.
+a board yet - it came up.
 
 `progress.md` ("The fourth core") has what was checked and how.  Two
 things that changed for every core: `usb_host.c` compares the key

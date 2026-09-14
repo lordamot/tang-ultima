@@ -43,3 +43,16 @@ Not checked, and cannot be here: the ZS-256 on a board under this firmware
 at all - switched to, saved to flash, its ROMs loaded, its keyboard; the
 key-report change on the other three cores; the firmware on the dock.
 Nothing committed.
+
+---
+
+it works
+
+***
+
+Recorded as reported: progress.md ("The fourth core" - seen on the board,
+14 Sep 2026, evening), the handover section, the CHANGELOG, the README's
+state line, the guideline's "what is NOT checked" list.  What the report
+did not itemise - "Save to flash" with the ZS-256, the key-report change
+on the other three machines - is listed as not reported, not as unseen.
+Nothing committed yet.

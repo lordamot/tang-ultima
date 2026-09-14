@@ -542,7 +542,15 @@ it** - the board runs off a charger or a power bank, and the PC-side
 programmer is kept.  If that changes: fetch the bootloader sha-pinned,
 put stage 2 at 0x20000 as well as 0x40000, add the two targets.
 
-## The fourth core, 14 September 2026 - the ZS-256, built and walked, not on a board
+## The fourth core, 14 September 2026 - the ZS-256, built, walked, and seen on the board
+
+**Seen on the board, 14 September 2026, evening: the user reports the
+ZS-256 works under this firmware ("it works").**  What that covers
+beyond the machine coming up - the switch to it, its ROMs from
+`/sd/zs256/`, the keyboard - was not itemised; the list below of what
+was checked here stands as the account of the build, and the "NOT
+verified" list is now what the report did not itemise, not what is
+unseen.
 
 `../tang-zs256` (ZS-256 Nano: Sergey Zonov's Scorpion ZS-256 Turbo+,
 started 13 Sep 2026 on Korvet Nano's method, and written to be a core
@@ -597,13 +605,11 @@ What was verified, and how:
   `rom_select()` with `/sd/zs256/GAME.rom`, mounts nothing, remembers
   the name in slot 5 and closes the OSD.
 
-What was NOT verified - and none of it can be here:
+What was NOT verified here, and what the board report did not itemise:
 
-- The ZS-256 on a board at all under this firmware: switched to,
-  saved to flash, its ROMs loaded from `/sd/zs256/`, its keyboard,
-  its Debug page.  Its own repository says "nothing has been on a
-  board yet" for the machine itself (its `progress.md`), so a ZS-256
-  that does not come up is that before it is anything here.
+- "Save to flash" with the ZS-256, its Debug page, and how much of the
+  machine was exercised (its own repository's `progress.md` is where
+  the machine's own state is kept).
 - `/sd/zs256/zs256.rom` and `gs105a.rom` must be put on the card by
   hand (`make card` says so); the machine executes zeros without them.
 - The key-report change on the other three cores.

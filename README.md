@@ -14,9 +14,8 @@ Turbo+** - и пункт меню, который переключает пла�
 лицензия - MIT (`LICENCE.md`).  *English below.*
 
 **Состояние (14 сентября 2026): переключение работает на плате -
-Корвет → ПК8000 → УКНЦ из меню, 13 сентября.  ZS-256 добавлен 14
-сентября: собирается, проходит временной анализ, меню проверено на
-хосте; на плате под этой прошивкой ещё не запускался.**
+Корвет → ПК8000 → УКНЦ из меню, 13 сентября; ZS-256 добавлен и
+запущен на плате 14 сентября.**
 
 ## Как это устроено
 
@@ -114,9 +113,8 @@ does the switching.  Version in `VERSION`, history in `CHANGELOG.md`,
 MIT (`LICENCE.md`).
 
 **State (14 September 2026): the switch works on the board - Korvet →
-PK8000 → UKNC from the OSD, 13 September.  The ZS-256 was added on 14
-September: it builds, meets timing and its menu walks on the host; it
-has not run on a board under this firmware yet.**
+PK8000 → UKNC from the OSD, 13 September; the ZS-256 was added and
+seen running on the board on 14 September.**
 
 ## How it works
 
