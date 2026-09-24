@@ -6,13 +6,15 @@
 
 #include "sysctrl.h"
 #include "bflb_wdg.h"
+#include "bflb_mtimer.h"
 #include "extrom.h"
+#include "azbk.h"
 #include "sdc.h"
 
 unsigned char core_id = 0;
 
 static const char *core_names[] = {
-  "<unset>", "Atari ST", "C64", "UNEON", "AMIGA", "UKNC", "AGAT9", "PK8000", "Korvet", "ZS-256"
+  "<unset>", "Atari ST", "C64", "UNEON", "AMIGA", "UKNC", "AGAT9", "PK8000", "Korvet", "ZS-256", "BK"
 };
 
 static void sys_begin(spi_t *spi, unsigned char cmd) {
@@ -32,7 +34,7 @@ int sys_status_is_valid(spi_t *spi) {
 
   if((b0 == 0x5c) && (b1 == 0x42)) {
     printf("Core ID: %02x\r\n", core_id);
-    if(core_id < 10) printf("Core: %s\r\n", core_names[core_id]);
+    if(core_id < 11) printf("Core: %s\r\n", core_names[core_id]);
 
     // coldboot status equals core_id on cores not supporting cold
     // boot status
@@ -146,11 +148,12 @@ void sys_reconfig(spi_t *spi) {
   spi_end(spi);
 }
 
-// ZS-256: bytes into the SDRAM (membus.v's loader port through
-// sysctrl.v's CMD 6): three address bytes, high first, then the bytes,
-// the address stepping.  The ROM images go in this way at start
-// (romload.c); the core's own processor is held in reset meanwhile.
-// The same CMD 6 as the PK8000's poke, with one address byte more.
+// ZS-256 and BK: bytes into the SDRAM (membus.v's loader port on the
+// ZS-256, poke.v on the BK, through sysctrl.v's CMD 6): three address
+// bytes, high first, then the bytes, the address stepping.  The ROM
+// images go in this way at start (romload.c, azbk.c); the core's own
+// processor is held in reset meanwhile.  The same CMD 6 as the PK8000's
+// poke, with one address byte more.
 void sys_poke24(spi_t *spi, unsigned long addr, const unsigned char *buf, int len) {
   sys_begin(spi, SPI_SYS_POKE);
   spi_tx_u08(spi, (addr >> 16) & 0xff);
@@ -160,7 +163,31 @@ void sys_poke24(spi_t *spi, unsigned long addr, const unsigned char *buf, int le
   spi_end(spi);
 }
 
-// PK8000/Korvet/ZS-256: the debug window (memcheck.v through sysctrl.v's CMD 7),
+// BK: a word back out of the SDRAM (poke.v through sysctrl.v's CMD 8):
+// three address bytes, high first; then the core needs a few
+// microseconds (its read is the arbiter's last port, behind the
+// display's bursts), a byte during which it sets its ready flag, the
+// ready byte, and the four bytes of the 32-bit word holding the address,
+// low byte first - every answer is one byte behind the byte that set it.
+// Not ready: once more with a longer pause, three times in all.  The
+// Korvet's ExtROM channel is CMD 8 too; this is only ever sent to core 10.
+int sys_peek24(spi_t *spi, unsigned long addr, unsigned char *word) {
+  for(int attempt = 0; attempt < 3; attempt++) {
+    sys_begin(spi, SPI_SYS_PEEK);
+    spi_tx_u08(spi, (addr >> 16) & 0xff);
+    spi_tx_u08(spi, (addr >> 8) & 0xff);
+    spi_tx_u08(spi, addr & 0xff);
+    bflb_mtimer_delay_us(5 << attempt);
+    spi_tx_u08(spi, 0);                          // the ready flag is set at the end of this byte
+    unsigned char ready = spi_tx_u08(spi, 0);
+    for(int i=0;i<4;i++) word[i] = spi_tx_u08(spi, 0);
+    spi_end(spi);
+    if(ready & 1) return 0;
+  }
+  return -1;
+}
+
+// PK8000/Korvet/ZS-256/BK: the debug window (memcheck.v through sysctrl.v's CMD 7),
 // eight bytes a transaction - the core answers one strobe behind, so
 // the byte after the offset is already the first of them
 void sys_get_debug(spi_t *spi, unsigned char *buf, int len) {
@@ -221,7 +248,9 @@ void sys_handle_interrupts(unsigned char pending) {
   if(pending & 0x08) // irq 3 = SDC
     sdc_handle_event();
 
-  if(pending & 0x10) // irq 4 = the ExtROM channel (Korvet)
-    extrom_handle_event();
+  if(pending & 0x10) {  // irq 4 = the ExtROM channel (Korvet), the AZ controller (BK, azctrl.v)
+    if(core_id == CORE_ID_BK) az_handle_event();
+    else                      extrom_handle_event();
+  }
 }
 

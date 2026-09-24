@@ -1,4 +1,4 @@
-# Tang Ultima - four Soviet machines in one Tang Nano 20K, switched from
+# Tang Ultima - five Soviet machines in one Tang Nano 20K, switched from
 # the OSD.
 #
 # The machines are the sibling repositories, built here out of their trees:
@@ -7,9 +7,10 @@
 #   ../tang-pk8000   ПК8000 Сура
 #   ../tang-korvet   ПК8020 Корвет
 #   ../tang-zs256    Scorpion ZS-256 Turbo+
+#   ../tang-bk-epta  БК-0011М with an AZBK controller (BK Nano)
 #
 # The flash holds ONE bitstream, at flash address 0, and that is the
-# machine the board is - power-up always loads address 0.  All four live
+# machine the board is - power-up always loads address 0.  All five live
 # on the SD card as packed bitstreams, /cores/<name>.bin, and the OSD's
 # Core form writes the wanted one into address 0 through the FPGA's own
 # MSPI pins (mnano/flashwr.c, mister/flashwr.v); the board is then
@@ -17,14 +18,14 @@
 # cannot be pulsed from inside this FPGA.  .claude/docs/ has the account.
 #
 #   make toolchain     fetch the toolchain into tools/  (~8 GB, once)
-#   make cores         build all four -> bin/<core>.fs and bin/<core>.bin
-#   make core-uknc     one of them (also core-pk8000, core-korvet, core-zs256)
+#   make cores         build all five -> bin/<core>.fs and bin/<core>.bin
+#   make core-uknc     one of them (also core-pk8000, core-korvet, core-zs256, core-bk)
 #   make card          say which files to copy onto the SD card
 #   make fw            build the BL616 firmware -> build/fw/bl616.bin
-#   make menu-test     the OSD menu on the host, all four cores' forms as PNG
+#   make menu-test     the OSD menu on the host, all five cores' forms as PNG
 #   make lint          Verilator over each core, in its own tree
 #   make flash-image   openFPGALoader the default core into flash address 0
-#   make flash-core-uknc   any single core into address 0 (also -pk8000, -korvet, -zs256)
+#   make flash-core-uknc   any single core into address 0 (also -pk8000, -korvet, -zs256, -bk)
 #   make flash-mcu     flash the firmware over UART (COMX=/dev/ttyACM0)
 #   make clean         remove build/
 #
@@ -48,7 +49,7 @@
 # by the HDMI socket) while plugging the board in, and the dock unplugged.
 #
 # DEFAULT_CORE=<name> is what `make flash-image` puts at address 0 (uknc).
-# LOADING_RATE=<MHz> passes -loading_rate to Gowin for all four cores -
+# LOADING_RATE=<MHz> passes -loading_rate to Gowin for all five cores -
 # the MSPI clock the FPGA reads the flash at, Gowin's default being 2.5,
 # which is about 3 s to configure.  Untested on a board: leave it alone
 # unless you mean to try it.
@@ -73,14 +74,14 @@ PYTHON   := python3
 # The cores: where each lives and what Gowin calls its project.
 #
 # There are no slots any more.  The flash holds ONE bitstream, at address
-# 0, and that is the machine the board is; the four live on the SD card
+# 0, and that is the machine the board is; the five live on the SD card
 # as packed bitstreams and the OSD writes the wanted one to address 0
 # (mnano/flashwr.c, .claude/docs/coreswitch.md).  MultiBoot is gone
 # because RECONFIG_N cannot be pulsed from inside this FPGA - see
 # .claude/docs/progress.md - so the ring, the jump addresses and the
 # three-slot image went with it.
 #-----------------------------------------------------------------------
-CORES        := uknc pk8000 korvet zs256
+CORES        := uknc pk8000 korvet zs256 bk
 # what `make flash-image` puts at address 0, i.e. what a fresh board is
 DEFAULT_CORE ?= uknc
 
@@ -95,6 +96,9 @@ NAME_korvet  := korvet
 
 DIR_zs256    := $(ROOT)/../tang-zs256
 NAME_zs256   := zs256
+
+DIR_bk       := $(ROOT)/../tang-bk-epta
+NAME_bk      := bk
 
 LOADING_RATE ?=
 TCLOPTS      := $(if $(LOADING_RATE),--loading-rate $(LOADING_RATE),)
@@ -172,7 +176,7 @@ lint: $(foreach c,$(CORES),lint-$(c))
 
 #-----------------------------------------------------------------------
 # The card.  /sd/cores/<name>.bin is where the OSD looks for a machine to
-# install, so these four files are what makes the switch work at all -
+# install, so these five files are what makes the switch work at all -
 # without them the Core form can only report that the file is missing.
 #-----------------------------------------------------------------------
 card: $(foreach c,$(CORES),bin/$(c).bin)
@@ -180,12 +184,16 @@ card: $(foreach c,$(CORES),bin/$(c).bin)
 	@echo "copy these into /cores/ on the SD card:"
 	@ls -l $(foreach c,$(CORES),bin/$(c).bin)
 	@echo
-	@echo "  SD:/cores/uknc.bin  SD:/cores/pk8000.bin  SD:/cores/korvet.bin  SD:/cores/zs256.bin"
+	@echo "  SD:/cores/uknc.bin  SD:/cores/pk8000.bin  SD:/cores/korvet.bin  SD:/cores/zs256.bin  SD:/cores/bk.bin"
 	@echo
 	@echo "and SD:/ultima.ini records which one is in the flash (the OSD writes it)."
 	@echo
 	@echo "The ZS-256 has no ROM in its bitstream: SD:/zs256/zs256.rom (../tang-zs256/soft/rom/scorp294.rom,"
 	@echo "or a 256 KB ProfROM) and SD:/zs256/gs105a.rom, else it runs zeros (romload.c)."
+	@echo
+	@echo "The BK has no ROM in its bitstream either: SD:/bk/ is MAXIOL's AZBK card package"
+	@echo "(../tang-bk-epta/soft/azbk/: AZ.INI, ROM/, DISKS/ - its 'make card' stages it),"
+	@echo "else it restarts for ever on empty memory (azbk.c reads AZ.INI at start)."
 
 #-----------------------------------------------------------------------
 # MCU firmware

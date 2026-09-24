@@ -1,0 +1,48 @@
+lets integrate new core: ../tang-bk-epta
+
+********************************************************************************
+
+The BK (../tang-bk-epta, BK Nano - the BK-0011M with MAXIOL's AZBK
+controller) is integrated as the fifth core.  Built, timed, linted and
+walked on the host; not seen on a board under this firmware.
+
+What was done, following the ZS-256's integration:
+
+- Makefile: CORES gets bk, DIR_bk/NAME_bk, the card target names
+  /cores/bk.bin and /bk/ (MAXIOL's card package).  make core-bk built
+  out of the sibling's tree: logic 56%, registers 35%, timing gate clean
+  (0 setup, 0 hold); bin/bk.bin 907 418 bytes, byte-identical to Gowin's,
+  a5 c3 at 0x16 and IDCODE 0000081b at 0x1c; the pin report has mspi_*
+  on 59-62, uart_tx/rx on 69/70, reconfig_n on 48.  make lint-bk ok.
+  The sibling's tree is untouched.
+- Firmware: azbk.c/h and bk.c/h copied verbatim; CORE_ID_BK 10;
+  sys_peek24 (CMD 8 - the Korvet's ExtROM is CMD 8 too, each sent to
+  its own core only); irq 4 dispatched to the AZ controller on core 10;
+  kbd_tx_bk on the three key paths of usb_host.c with keymap[10] NULL;
+  the BK's forms with S,Core,2, About, Debug page; menu_bk_mount for
+  the four AZ unit slots (never sd_card.v) and menu_bk_boot between R=3
+  and R=0; drivename, ultima_cores[] "BK-0011M", ULTIMA_CORES 5, the
+  Core form's fifth entry.  Two generic changes from the sibling's board:
+  the SPI task's stack is 2048 words and sdc_read_sector's waits are
+  bounded (sdc_timeouts).  make fw builds: 483 808 bytes, copied to
+  bin/bl616.bin.  Only the two pre-existing warnings.
+- make menu-test: 50 screens, 0 errors over five cores, with new checks
+  that az_boot runs with the machine held and that an AZ unit's file
+  goes to az_set_unit with /sd/bk/GAME.img and opens nothing in
+  sd_card.v.
+- Docs: CLAUDE.md, README (both halves), build.md, mcu.md, progress.md
+  ("The fifth core"), handover.md (a new top section), CHANGELOG,
+  guideline.md, git.md, onboard/stage.h's comment.
+
+Not verified: the BK on a board under this firmware at all - the switch
+to it, its keyboard, its disks, "Save to flash"; the two generic changes
+on the other four cores.  /sd/bk/ must be filled by hand with the
+sibling's soft/azbk/ (AZ.INI, ROM/, DISKS/) - without AZ.INI the machine
+does not start.
+
+One thing seen on the way: make card rebuilds all five cores first (its
+prerequisites reach the always-run PnR rule), so the run was stopped and
+bin/uknc.fs and bin/pk8000.fs restored from git (only their header date
+had changed; the .bin files were identical).
+
+Nothing committed.

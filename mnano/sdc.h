@@ -7,6 +7,9 @@
 // drivename() in sdc.c): the UKNC's four floppies and the IDE image, the
 // PK8000's tape, two floppies, hard disk and ROM disk, the Korvet's four
 // floppies and the ОПТС ROM, the ZS-256's four floppies and the SMUC's disk.
+// The BK's four AZ units use slots 0..3 for their names and directories
+// only: nothing is ever opened in sd_card.v for them - menu.c hands the
+// path to azbk.c (az_set_unit), whose commands the MCU serves.
 #define MAX_DRIVES  5
 
 // One more slot that is browsed but never mounted: the UKNC's "Run SAV:"
@@ -18,8 +21,11 @@
 #define SDC_SLOT_ROM    SDC_SLOT_EXTRA
 
 // fatfs mounts the card under /sd; each core browses its own directory
-// below it (ultima.h: /sd/uknc, /sd/pk8000, /sd/korvet, /sd/zs256)
+// below it (ultima.h: /sd/uknc, /sd/pk8000, /sd/korvet, /sd/zs256, /sd/bk)
 #define CARD_MOUNTPOINT "/sd"
+
+// card waits that gave up (sdc_read_sector) - the BK's Debug page shows it
+int sdc_timeouts(void);
 
 typedef struct {
   char *name;

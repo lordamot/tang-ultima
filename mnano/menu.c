@@ -12,6 +12,7 @@
 #include "rt11sav.h"
 #include "bas.h"
 #include "romload.h"
+#include "azbk.h"
 #include "ultima.h"
 #include "coreload.h"
 #include "menu.h"
@@ -83,7 +84,7 @@ menu_variable_t variables_agat9[] = {
 // ------------------------------------------------------------------
 // ---------------------  Tang Ultima: the Core form -----------------
 // ------------------------------------------------------------------
-// One form on every core's main menu, the same text on all four: a 'C'
+// One form on every core's main menu, the same text on all five: a 'C'
 // entry a machine, its option field the core id (sysctrl.h).  Selecting
 // the one that is running does nothing; any other is sent from the card
 // to the board's own BL616, which loads it into the FPGA's SRAM, and the
@@ -99,6 +100,7 @@ static const char core_form_ultima[] =
   "C,PK8000,7;"                         // ПК8000 Сура
   "C,Korvet,8;"                         // ПК8020 Корвет
   "C,ZS-256,9;"                         // Scorpion ZS-256 Turbo+
+  "C,BK-0011M,10;"                      // БК-0011М with an AZBK controller (BK Nano)
   "C,Save to flash,0;";                 // the running one -> flash address 0
 
 // the form's text, for the host test to know it is on every core
@@ -518,6 +520,70 @@ menu_variable_t variables_zs256[] = {
   { '\0',{ 0 }}
 };
 
+// ------------------------------------------------------------------
+// ---------------------  BK Nano menu ---------------------------
+// ------------------------------------------------------------------
+// The main form is four AZ units (the images the controller's AZ.INI
+// names, or the ones chosen here, which override them and are saved),
+// the reset, a "Hardware" form for the switches, the Core form, an
+// "About" text, the "Debug" window and "Save settings".  Every switch
+// is a letter sysctrl.v decodes; the unit slots are sdc.c's image names,
+// mounted through azbk.c (az_set_unit, menu_bk_mount below) and never
+// through sd_card.v, whose image ports the BK's top.v ties off.
+
+static const char main_form_bk[] =
+  "BK Nano,;"                           // main form has no parent
+  // --------
+  "F,AZ0:,0|img+bkd+dsk;"               // units 0..3 of the AZ controller
+  "F,AZ1:,1|img+bkd+dsk;"
+  "F,AZ2:,2|img+bkd+dsk;"
+  "F,AZ3:,3|img+bkd+dsk;"
+  "B,Reset,R;"                          // the reset: every reset here is the AZ's cold one too
+  "S,Hardware,1;"                       // Hardware submenu is form 1
+  "S,Core,2;"                           // core_form_ultima: switch the machine
+  "T,About,;"                           // the about_bk text
+  "T,Debug,;"                           // the debug window (menu_debug_open)
+  "B,Save settings,S;";
+
+static const char hardware_form_bk[] =
+  "Hardware,0|6;"                       // return to the main form, entry 6
+  // --------
+  "L,CPU:,4 MHz|8 MHz,T;"               // the К1801ВМ1's clock
+  "L,Joystick:,Off|On,j;"               // on 177714
+  "L,Volume:,Mute|33%|66%|100%,A;";
+
+static const char *forms_bk[] = {
+  main_form_bk,
+  hardware_form_bk,
+  core_form_ultima
+};
+
+// the "About" text, one paragraph a string, wrapped to the OSD's width
+// when it is opened (menu_text_open); "" is an empty line
+static const char *about_bk[] = {
+  "BK Nano - a BK-0011M with an AZBK controller on a Tang Nano 20K",
+  "",
+  "Authors: Sergei Lemeshev, Claude Code.  MIT licence; the K1801VM1 model GPL v2",
+  "",
+  "K1801VM1 at 4 or 8 MHz, 128 KB, BASIC and BOS.  The AZBK: 32 MB mapper, 256-colour 1024x768 display with three layers, blitter, two AYs, Covox, sound DMA, disks from the SD card, EEPROM, clock - no network",
+  "Dangerous Dave in the Haunted Mansion (grf, 2025) runs; ANDOS, MKDOS and the BK monitor boot from the card",
+  "",
+  "F12 the menu, F11 reset, Alt+Win the BK screen as its mono or colour output, Alt+Left Ctrl the palettes back; the key map: keyboard-ru.pdf",
+  "",
+  "The AZBK is MAXIOL's (2021-2026), as documented at forum.maxiol.com and modelled by GID's BKemu; the card package is his.  K1801VM1: Vslav's model in Sorgelig's MiSTer core; YM2149: MikeJ, Sorgelig",
+  "Built on ZS-256, Korvet, PK8000 and UKNC Nano (Alexey Gurov) and MiSTeryNano (Till Harbaum)",
+  NULL
+};
+
+// variable ids must match the ones in the menu string, and sysctrl.v's
+// (buttons - 'R', 'S', 'B' - are not variables)
+menu_variable_t variables_bk[] = {
+  { 'A', { 1 }},    // Volume 33%
+  { 'T', { 0 }},    // CPU 4 MHz
+  { 'j', { 1 }},    // joystick on
+  { '\0',{ 0 }}
+};
+
 // the value of a variable by id, or -1
 static int menu_var_value(menu_t *menu, char id) {
   for(int i=0;menu->vars[i].id;i++)
@@ -859,13 +925,15 @@ static const char *settings_file[] = {
   CARD_MOUNTPOINT "/agat9.ini",    // core id = 6  CORE_ID_AGAT9
   NULL,                            // core id = 7  CORE_ID_PK8000 - ultima_cores[]
   NULL,                            // core id = 8  CORE_ID_KORVET - ultima_cores[]
-  NULL                             // core id = 9  CORE_ID_ZS256  - ultima_cores[]
+  NULL,                            // core id = 9  CORE_ID_ZS256  - ultima_cores[]
+  NULL                             // core id = 10 CORE_ID_BK     - ultima_cores[]
 };
 
 // Returns NULL for a core with no settings file of its own, which both
-// callers check: opening NULL would take FatFs down.  The four cores of
+// callers check: opening NULL would take FatFs down.  The five cores of
 // Tang Ultima keep theirs in their own directory (ultima.h): /sd/uknc/
-// uknc.ini, /sd/pk8000/pk8000.ini, /sd/korvet/korvet.ini, /sd/zs256/zs256.ini.
+// uknc.ini, /sd/pk8000/pk8000.ini, /sd/korvet/korvet.ini, /sd/zs256/zs256.ini,
+// /sd/bk/bk.ini.
 static const char *settings_file_name(void) {
   static char name[64];
   const ultima_core_t *c = ultima_core(core_id);
@@ -1025,6 +1093,31 @@ static void menu_settings_save(menu_t *menu) {
   sdc_unlock();
 }
 
+// BK: an image chosen in the OSD becomes the AZ's unit, and is remembered
+// by name like any slot's; az_boot() sets the units from AZ.INI first,
+// then these override the ones that were chosen here.  A name from the
+// settings file may already be a path (drive<n>=/sd/...).
+static void menu_bk_mount(int drive, const char *name) {
+  if(!name || !name[0]) { az_set_unit(drive, NULL); sdc_set_image_name(drive, NULL); return; }
+  char *cwd = sdc_get_cwd(drive);
+  char path[(cwd ? strlen(cwd) : 0) + strlen(name) + 2];
+  if(cwd && name[0] != '/') sprintf(path, "%s/%s", cwd, name); else strcpy(path, name);
+  sdc_set_image_name(drive, name);
+  az_set_unit(drive, path);
+}
+
+static void menu_bk_boot(menu_t *menu) {
+  az_boot(menu->osd->spi);
+  for(int drive = 0; drive < 4; drive++) {
+    char *name = sdc_get_image_name(drive);
+    if(name) {
+      char local_name[strlen(name)+1];
+      strcpy(local_name, name);
+      menu_bk_mount(drive, local_name);
+    }
+  }
+}
+
 #ifndef SDL
 menu_t *menu_init(spi_t *spi)
 #else
@@ -1064,6 +1157,9 @@ menu_t *menu_init(u8g2_t *u8g2)
   } else if(core_id == CORE_ID_ZS256) {
     menu.vars = variables_zs256;
     menu.forms = forms_zs256;
+  } else if(core_id == CORE_ID_BK) {
+    menu.vars = variables_bk;
+    menu.forms = forms_bk;
   } else {
     menu.vars = NULL;
     menu.forms = NULL;
@@ -1148,7 +1244,9 @@ menu_t *menu_init(u8g2_t *u8g2)
       char local_name[strlen(name)+1];
       strcpy(local_name, name);
       
-      sdc_image_open(drive, local_name);
+      // the BK's units are mounted by menu_bk_boot(), once az_boot() has
+      // read AZ.INI, with the machine held in reset (below)
+      if(core_id != CORE_ID_BK) sdc_image_open(drive, local_name);
     }
   }
   } else
@@ -1168,9 +1266,12 @@ menu_t *menu_init(u8g2_t *u8g2)
   // the ROM images into the core, before the machine starts (ZS-256)
   if(core_id == CORE_ID_ZS256) rom_boot(menu.osd->spi);
 
-  // release the core's reset, so it can start
-  // and cold reset the core, just in case ...
+  // cold reset the core and hold it; for the BK the AZ's ROMs and units
+  // go into the core meanwhile (az_boot reads AZ.INI; the OSD's saved
+  // images override units 0..3 - the machine must not run on the empty
+  // memory while its ROMs arrive, BK Nano 23 Sep 2026); then release it
   sys_set_val(menu.osd->spi, 'R', 3);
+  if(core_id == CORE_ID_BK) menu_bk_boot(&menu);
   sys_set_val(menu.osd->spi, 'R', 0);
 
   if(core_id == CORE_ID_C64||core_id == CORE_ID_VIC20) {  // c64 core, c1541 reset at power-up
@@ -1611,13 +1712,48 @@ static void menu_text_wrap(menu_t *menu, const char *para) {
 
 // The "Debug" page: 32 bytes from the core's debug bus (sysctrl.v's
 // CMD 7), formatted here.  The byte map is memcheck.v's `dbg` on the
-// PK8000 and the Korvet, top.v's on the ZS-256, so the lines are per core.
+// PK8000 and the Korvet, top.v's on the ZS-256 and the BK, so the lines
+// are per core.
 static void menu_text_open(menu_t *menu, const char *title, const char **paras);
 static void menu_debug_open(menu_t *menu, const char *title) {
   static unsigned char d[32];
-  static char line[8][40];
-  static const char *paras[9];
+  static char line[10][40];
+  static const char *paras[20];
   sys_get_debug(menu->osd->spi, d, sizeof(d));
+  if(core_id == CORE_ID_BK) {
+    // BK Nano's top.v dbg bus, its menu.c's page verbatim: the memory's
+    // state and the SDRAM clock phase, the phases the self-test passed
+    // at, the last bus cycle, the reset chain, the AZ's registers, the
+    // controller's bits, the page table, the first two units, and then
+    // azbk.c's own lines - the ROM load, its read-back, the commands served
+    int n = 0;
+    snprintf(line[0], sizeof(line[0]), "init %d bist %d fail %d late %d phase %d",
+             (d[1]>>1)&1, d[2]&1, (d[2]>>1)&1, (d[2]>>2)&1, d[22]&15);
+    // the activity byte: init, bist ok, a bus cycle (50 ms), an I/O write, an SPI byte,
+    // a card read, not in reset, a ROM byte (top.v)
+    snprintf(line[1], sizeof(line[1]), "passes early %02X%02X late %02X%02X rd %02X act %02X",
+             d[21], d[20], d[25], d[24], d[26], d[27]);
+    snprintf(line[2], sizeof(line[2]), "cycle at %02X%02X, %u cycles, %u resets",
+             d[7], d[6], d[18] | d[19]<<8, d[17]);
+    snprintf(line[3], sizeof(line[3]), "reset %d init %d key %d",
+             (d[4]>>1)&1, d[4]&1, d[5]&1);
+    snprintf(line[4], sizeof(line[4]), "177346 %02X%02X 177340 %02X%02X",
+             d[15], d[14], d[11], d[10]);
+    snprintf(line[5], sizeof(line[5]), "177716 %02X%02X 177230 %02X%02X",
+             d[9], d[8], d[13], d[12]);
+    snprintf(line[6], sizeof(line[6]), "AZ: pending %d done %d err %d",
+             (d[3]>>2)&1, (d[3]>>1)&1, d[3]&1);
+    // the page table: physical pages given out since the last cold reset (sdram.v's alloc_next - 128, of 1920),
+    // and how many times the count wrapped (aliasing since the first)
+    snprintf(line[7], sizeof(line[7]), "pages %u of 1920, wraps %u",
+             ((d[28] | (d[29] & 7) << 8) - 128) & 0x7ff, d[29] >> 3);
+    snprintf(line[8], sizeof(line[8]), "units: %s %s", az_unit_path(0) ? az_unit_path(0) : "-", az_unit_path(1) ? az_unit_path(1) : "-");
+    for(int i=0;i<9;i++) paras[n++] = line[i];
+    for(int i=0;az_boot_line(i) && n < 19;i++) paras[n++] = az_boot_line(i);
+    paras[n] = NULL;
+    menu_text_open(menu, title, paras);
+    return;
+  }
   if(core_id == CORE_ID_ZS256) {
     // top.v's dbg bus: 1 {init, por}, 2 {late, fail, done}, 3 the disks,
     // 5 the last opcode, 7:6 its address, 8 {halt_n, iff1}, 9 dos,
@@ -1823,8 +1959,9 @@ static void menu_fileselector(menu_t *menu, int event) {
 	  // User selected the "No Disk" entry
 	  // Eject it and return to parent menu
 	  menu_goto_form(menu, parent, fsel_entry);
-	  if(drive == SDC_SLOT_EXTRA) sdc_set_image_name(drive, NULL);  // nothing mounted there to eject
-	  else                        sdc_image_open(drive, NULL);
+	  if(drive == SDC_SLOT_EXTRA)    sdc_set_image_name(drive, NULL);  // nothing mounted there to eject
+	  else if(core_id == CORE_ID_BK) menu_bk_mount(drive, NULL);      // an AZ unit (azbk.c)
+	  else                           sdc_image_open(drive, NULL);
 	} else {	
 	  // check if we are going up one dir and try to select the
 	  // directory we are coming from
@@ -1875,6 +2012,11 @@ static void menu_fileselector(menu_t *menu, int event) {
 	sdc_set_image_name(drive, entry->name);
 	menu_goto_form(menu, parent, fsel_entry);
 	rom_select(menu->osd->spi, path);
+	osd_enable(menu->osd, OSD_INVISIBLE);
+      } else if(core_id == CORE_ID_BK) {
+	// BK: an AZ unit - remembered for the settings, mounted through azbk.c
+	menu_bk_mount(drive, entry->name);
+	menu_goto_form(menu, parent, fsel_entry);
 	osd_enable(menu->osd, OSD_INVISIBLE);
       } else {
 	// request insertion of this image
@@ -2068,6 +2210,7 @@ static void menu_select(menu_t *menu) {
     else if(core_id == CORE_ID_PK8000)    menu_text_open(menu, label, about_pk8000);
     else if(core_id == CORE_ID_KORVET)    menu_text_open(menu, label, about_korvet);
     else if(core_id == CORE_ID_ZS256)     menu_text_open(menu, label, about_zs256);
+    else if(core_id == CORE_ID_BK)        menu_text_open(menu, label, about_bk);
   } break;
 
   case 'C': {

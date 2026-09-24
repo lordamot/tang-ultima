@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **A fifth core: the BK** (`../tang-bk-epta`, BK Nano - the БК-0011М
+  with MAXIOL's AZBK controller).  `make core-bk`, `bin/bk.fs` and
+  `bin/bk.bin`, `/sd/cores/bk.bin`, `/sd/bk/` on the card with `bk.ini`
+  and MAXIOL's AZBK card package (`AZ.INI`, `ROM/`, `DISKS/`: the ROMs
+  are not in the bitstream - `mnano/azbk.c` sends them into the SDRAM
+  at start over SYS CMD 6 and reads them back over CMD 8, `sys_peek24`).
+  Core id 10; `azbk.c` and `bk.c` verbatim from the sibling; its forms,
+  About and Debug page; the AZ units mounted through `az_set_unit()`,
+  never `sd_card.v`; `kbd_tx_bk()` on every key path; interrupt 4 to
+  the AZ controller on this core; the Core form has five machines and
+  "Save to flash".  Two changes for every core, from the sibling: the
+  SPI task's stack is 2048 words (the AZ service runs FatFs from it)
+  and the card's sector waits are bounded.  Built, timed, linted,
+  walked on the host (`make menu-test`, 50 screens, 0 errors); **not
+  yet on a board under this firmware.**
 - **A fourth core: the ZS-256** (`../tang-zs256`, ZS-256 Nano - the
   Scorpion ZS-256 Turbo+).  `make core-zs256`, `bin/zs256.fs` and
   `bin/zs256.bin`, `/sd/cores/zs256.bin`, `/sd/zs256/` on the card with

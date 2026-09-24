@@ -1,21 +1,24 @@
 # Tang Ultima
 
-Четыре советских компьютера в одном **Tang Nano 20K**: **УКНЦ**
-(МС0511), **ПК8000 «Сура»**, **ПК8020 «Корвет»** и **Scorpion ZS-256
-Turbo+** - и пункт меню, который переключает плату из одного в другой
-за несколько секунд.  Каждая машина - её собственный репозиторий
+Пять советских компьютеров в одном **Tang Nano 20K**: **УКНЦ**
+(МС0511), **ПК8000 «Сура»**, **ПК8020 «Корвет»**, **Scorpion ZS-256
+Turbo+** и **БК-0011М** с контроллером AZBK - и пункт меню, который
+переключает плату из одного в другой за несколько секунд.  Каждая
+машина - её собственный репозиторий
 ([UKNC Nano](https://github.com/lordamot/tang-uknc),
 [PK8000 Nano](https://github.com/lordamot/tang-pk8000),
 [Korvet Nano](https://github.com/lordamot/tang-korvet),
-[ZS-256 Nano](https://github.com/lordamot/tang-zs256)); здесь - то, что
-делает из четырёх одну плату: одна программа для BL616, знающая все
-четыре, меню «Core» и прошивка для собственного BL616 платы, которая и
+[ZS-256 Nano](https://github.com/lordamot/tang-zs256),
+[BK Nano](https://github.com/lordamot/tang-bk-epta)); здесь - то, что
+делает из пяти одну плату: одна программа для BL616, знающая все
+пять, меню «Core» и прошивка для собственного BL616 платы, которая и
 переключает.  Версия - в файле `VERSION`, история - в `CHANGELOG.md`,
 лицензия - MIT (`LICENCE.md`).  *English below.*
 
-**Состояние (14 сентября 2026): переключение работает на плате -
+**Состояние (24 сентября 2026): переключение работает на плате -
 Корвет → ПК8000 → УКНЦ из меню, 13 сентября; ZS-256 добавлен и
-запущен на плате 14 сентября.**
+запущен на плате 14 сентября; БК-0011М добавлен 24 сентября - собран,
+проверен на хосте, на плате под этой прошивкой ещё не запускался.**
 
 ## Как это устроено
 
@@ -44,25 +47,29 @@ Partner остаётся программатором, и меню так и г�
   собственный BL616 платы (`make onboard-fw`, `make flash-mcu-onboard-stage2`)
   и одно ядро во флеш-память ПЛИС (`make flash-image`).  Дальше плата
   ставит ядра сама, с карты.
-- Рядом с этим репозиторием - четыре репозитория машин (`../tang-uknc`,
-  `../tang-pk8000`, `../tang-korvet`, `../tang-zs256`): ядра собираются
-  из них.
+- Рядом с этим репозиторием - пять репозиториев машин (`../tang-uknc`,
+  `../tang-pk8000`, `../tang-korvet`, `../tang-zs256`, `../tang-bk-epta`):
+  ядра собираются из них.
 
 ## SD-карта
 
 У каждой машины своя папка, и в ней всё, что раньше лежало в корне:
 
 ```
-/ultima.ini          какая машина во флеш-памяти: core=uknc | pk8000 | korvet | zs256
-/cores/uknc.bin      четыре битстрима, из них меню и переключает
+/ultima.ini          какая машина во флеш-памяти: core=uknc | pk8000 | korvet | zs256 | bk
+/cores/uknc.bin      пять битстримов, из них меню и переключает
 /cores/pk8000.bin
 /cores/korvet.bin
 /cores/zs256.bin
+/cores/bk.bin
 /uknc/               образы .dsk и .img, uknc.ini, RT11BASE.DSK, RT11SAV.DSK
 /pk8000/             .cas, .fdd, .img, .rom, .bas, pk8000.ini
 /korvet/             .kdi, .rom, korvet.ini, extrom/ (STAGE1.ROM, MOUNT.CFG, DISK/)
 /zs256/              .trd, .img, zs256.ini, zs256.rom и gs105a.rom - ПЗУ машины,
                      без них она исполняет нули (в битстриме ПЗУ нет)
+/bk/                 bk.ini и карточный пакет AZBK (MAXIOL): AZ.INI, ROM/, DISKS/,
+                     eeprom.dat - ПЗУ машины тоже не в битстриме, без AZ.INI она
+                     не стартует (../tang-bk-epta/soft/azbk/)
 ```
 
 Папки создаются прошивкой при первом запуске машины, если их нет.
@@ -73,7 +80,7 @@ Partner остаётся программатором, и меню так и г�
 
 ```
 make toolchain       инструменты в tools/ (~8 ГБ, один раз)
-make cores           четыре битстрима -> bin/<ядро>.fs и bin/<ядро>.bin
+make cores           пять битстримов -> bin/<ядро>.fs и bin/<ядро>.bin
 make card            что положить на карту
 make fw              прошивка BL616 (док) -> build/fw/bl616.bin
 make flash-image     openFPGALoader пишет одно ядро во флеш ПЛИС (один раз)
@@ -88,7 +95,7 @@ BL616: зажать BOOT, нажать RESET, отпустить BOOT, `make fla
 ## Меню
 
 **F12** открывает меню той машины, которая работает, - такое же, как в
-её собственном репозитории, - плюс пункт **Core**: список из четырёх
+её собственном репозитории, - плюс пункт **Core**: список из пяти
 машин, работающая отмечена, и **Save to flash**.  Выбор другой машины
 закрывает образы, посылает её битстрим BL616 платы и перезапускает док;
 через несколько секунд на экране другая машина.  «Save to flash» пишет
@@ -99,22 +106,26 @@ BL616: зажать BOOT, нажать RESET, отпустить BOOT, `make fla
 
 # Tang Ultima (English)
 
-Four Soviet computers in one **Tang Nano 20K** - the **UKNC** (МС0511),
-the **PK8000 "Sura"**, the **PK8020 "Korvet"** and the **Scorpion ZS-256
-Turbo+** - and a menu entry that turns the board from one into another
-in seconds.  Each machine is its own repository
+Five Soviet computers in one **Tang Nano 20K** - the **UKNC** (МС0511),
+the **PK8000 "Sura"**, the **PK8020 "Korvet"**, the **Scorpion ZS-256
+Turbo+** and the **BK-0011M** with an AZBK controller - and a menu entry
+that turns the board from one into another in seconds.  Each machine is
+its own repository
 ([UKNC Nano](https://github.com/lordamot/tang-uknc),
 [PK8000 Nano](https://github.com/lordamot/tang-pk8000),
 [Korvet Nano](https://github.com/lordamot/tang-korvet),
-[ZS-256 Nano](https://github.com/lordamot/tang-zs256)); this one holds
-what makes four of them one board: one BL616 firmware that knows all
-four, the "Core" form, and a firmware for the board's own BL616, which
+[ZS-256 Nano](https://github.com/lordamot/tang-zs256),
+[BK Nano](https://github.com/lordamot/tang-bk-epta)); this one holds
+what makes five of them one board: one BL616 firmware that knows all
+five, the "Core" form, and a firmware for the board's own BL616, which
 does the switching.  Version in `VERSION`, history in `CHANGELOG.md`,
 MIT (`LICENCE.md`).
 
-**State (14 September 2026): the switch works on the board - Korvet →
+**State (24 September 2026): the switch works on the board - Korvet →
 PK8000 → UKNC from the OSD, 13 September; the ZS-256 was added and
-seen running on the board on 14 September.**
+seen running on the board on 14 September; the BK-0011M was added on
+24 September - built and walked on the host, not yet run on a board
+under this firmware.**
 
 ## How it works
 
@@ -144,9 +155,9 @@ board).
   board's own BL616 (`make onboard-fw`, `make flash-mcu-onboard-stage2`),
   and one core into the FPGA's flash (`make flash-image`).  After that
   the board installs cores itself, from the card.
-- The four machines' repositories beside this one (`../tang-uknc`,
-  `../tang-pk8000`, `../tang-korvet`, `../tang-zs256`): the cores are
-  built out of them.
+- The five machines' repositories beside this one (`../tang-uknc`,
+  `../tang-pk8000`, `../tang-korvet`, `../tang-zs256`, `../tang-bk-epta`):
+  the cores are built out of them.
 
 ## The SD card
 
@@ -154,17 +165,22 @@ Each machine has a directory of its own, holding what used to sit in
 the card's root:
 
 ```
-/ultima.ini          which machine the flash holds: core=uknc | pk8000 | korvet | zs256
-/cores/uknc.bin      the four bitstreams, which is what the OSD switches between
+/ultima.ini          which machine the flash holds: core=uknc | pk8000 | korvet | zs256 | bk
+/cores/uknc.bin      the five bitstreams, which is what the OSD switches between
 /cores/pk8000.bin
 /cores/korvet.bin
 /cores/zs256.bin
+/cores/bk.bin
 /uknc/               .dsk and .img images, uknc.ini, RT11BASE.DSK, RT11SAV.DSK
 /pk8000/             .cas, .fdd, .img, .rom, .bas, pk8000.ini
 /korvet/             .kdi, .rom, korvet.ini, extrom/ (STAGE1.ROM, MOUNT.CFG, DISK/)
 /zs256/              .trd, .img, zs256.ini, and zs256.rom and gs105a.rom - the
                      machine's ROMs; without them it executes zeros (none is in
                      the bitstream)
+/bk/                 bk.ini and MAXIOL's AZBK card package: AZ.INI, ROM/, DISKS/,
+                     eeprom.dat - the machine's ROMs are not in the bitstream
+                     either, and without AZ.INI it does not start
+                     (../tang-bk-epta/soft/azbk/)
 ```
 
 The firmware creates a machine's directory the first time that machine
@@ -175,7 +191,7 @@ not leave it.
 
 ```
 make toolchain       the toolchain into tools/ (~8 GB, once)
-make cores           the four bitstreams -> bin/<core>.fs and bin/<core>.bin
+make cores           the five bitstreams -> bin/<core>.fs and bin/<core>.bin
 make card            what goes onto the card
 make fw              the dock's BL616 firmware -> build/fw/bl616.bin
 make flash-image     openFPGALoader writes one core into the FPGA's flash (once)
@@ -190,7 +206,7 @@ BOOT, tap RESET, release BOOT, `make flash-mcu`.
 ## The menu
 
 **F12** opens the running machine's menu - the one its own repository
-has - plus a **Core** form: the four machines, the running one marked,
+has - plus a **Core** form: the five machines, the running one marked,
 and **Save to flash**.  Picking another machine closes the images, sends
 its bitstream to the board's BL616 and restarts the dock; a few seconds
 later the other machine is on the screen.  "Save to flash" writes the
@@ -200,6 +216,6 @@ screen is not decoration.
 ## Acknowledgements
 
 Alexey Gurov (UKNC Nano's hardware), Till Harbaum (MiSTeryNano, whose
-firmware and MCU link all of this runs on), and everyone the four
+firmware and MCU link all of this runs on), and everyone the five
 machines' own About pages name.  Authors of this repository: Sergei
 Lemeshev and Claude Code.

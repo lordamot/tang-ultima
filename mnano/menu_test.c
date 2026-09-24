@@ -10,7 +10,7 @@
   bitmap under the directory given as the first argument (tools/osd_png.py
   makes PNGs of them).
 
-  Four cores, one firmware, so the walk is generic and runs once per
+  Five cores, one firmware, so the walk is generic and runs once per
   core: the main form is read, every 'S' form is entered and left by its
   title (and checked to come back to the entry that opened it), every
   'L' value is stepped right and left and lands where it started with
@@ -20,9 +20,13 @@
   every core's main form, marks the running core, selecting the running
   core does nothing, selecting another records the switch.  The
   per-core detail (the UKNC's RTC form, the Korvet's Debug page, the
-  PK8000's tape, the ZS-256's ROM) is in the sibling repositories' own
-  tests; what this one is for is that the four sets of forms still agree with their
-  cores after being put into one file, and that the Core form is right.
+  PK8000's tape, the ZS-256's ROM, the BK's AZ units) is in the sibling
+  repositories' own tests; what this one is for is that the five sets of
+  forms still agree with their cores after being put into one file, and
+  that the Core form is right.  Two per-core hooks are checked here all
+  the same, because they are wired in this file's menu.c and nowhere
+  else: the ZS-256's ROM slot calls romload.c, and the BK's unit slots
+  call azbk.c and never sd_card.v's.
 */
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +41,7 @@
 #include "rt11sav.h"
 #include "bas.h"
 #include "romload.h"
+#include "azbk.h"
 #include "ultima.h"
 #include "menu.h"
 
@@ -96,6 +101,25 @@ static int set_count(char id) {
   for(int i=0;i<set_n;i++) if(set_log[i][0] == id) n++;
   return n;
 }
+
+// the BK's AZ controller (azbk.c): the boot, and the units the OSD
+// mounts.  az_boot must come with the machine held in reset: R=3 sent,
+// R=0 not yet - what the core had been told is recorded when it is called.
+static int az_boots, az_sets, az_set_unit_last = -1;
+static int az_boot_r_count = -1, az_boot_r_last = -1;
+static char *az_units[AZ_UNITS];
+void az_boot(spi_t *spi) { (void)spi; az_boots++; az_boot_r_count = set_count('R'); az_boot_r_last = set_last('R'); }
+int  az_set_unit(int unit, const char *path) {
+  assert(unit >= 0 && unit < AZ_UNITS);
+  if(az_units[unit]) free(az_units[unit]);
+  az_units[unit] = path ? strdup(path) : NULL;
+  az_sets++; az_set_unit_last = unit;
+  return 0;
+}
+const char *az_unit_path(int unit) { return az_units[unit]; }
+unsigned long az_unit_blocks(int unit) { return az_units[unit] ? 1600 : 0; }
+const char *az_boot_line(int n) { return n == 0 ? "ROM: (menu test, no card)" : NULL; }
+void az_handle_event(void) {}
 
 // the card: one directory a slot, three files each
 static char *cwd[MAX_DRIVES + 1];
@@ -253,6 +277,35 @@ static void walk_entry(menu_t *menu, int form, int n, int depth) {
       menu_do(menu, MENU_EVENT_SHOW);
       break;
     }
+    if(core_id == CORE_ID_BK) {
+      // an AZ unit: the file picked goes to azbk.c as the card's path,
+      // the slot remembers the name, sd_card.v opens nothing, the OSD
+      // closes; reopened, the selector highlights it; No Disk ejects it
+      int opens = open_n, sets = az_sets;
+      char want[80];
+      snprintf(want, sizeof(want), "%s/GAME.img", ultima_root());
+      osd_visible = 1;
+      goto_entry(menu, 2);                  // GAME.img
+      menu_do(menu, MENU_EVENT_SELECT);
+      CHECK(open_n == opens && az_sets == sets + 1 && az_set_unit_last == slot && !osd_visible,
+            "%s: opened %d images, az_set_unit %d times on unit %d, osd %d",
+            name, open_n - opens, az_sets - sets, az_set_unit_last, osd_visible);
+      CHECK(az_units[slot] && !strcmp(az_units[slot], want), "%s: unit %d holds '%s', want %s",
+            name, slot, az_units[slot] ? az_units[slot] : "(null)", want);
+      CHECK(image_name[slot] && !strcmp(image_name[slot], "GAME.img"), "%s: slot %d remembers '%s'",
+            name, slot, image_name[slot] ? image_name[slot] : "(null)");
+      CHECK(menu->form == form && menu->entry == n, "%s: back to form %d entry %d", name, menu->form, menu->entry);
+      menu_do(menu, MENU_EVENT_SHOW);
+      menu_do(menu, MENU_EVENT_SELECT);
+      CHECK(menu->form == MENU_FORM_FSEL && menu->entry == 2, "%s: selector reopens on entry %d, expected the file", name, menu->entry);
+      menu_do(menu, MENU_EVENT_UP);         // No Disk
+      menu_do(menu, MENU_EVENT_SELECT);
+      CHECK(open_n == opens && az_sets == sets + 2 && az_set_unit_last == slot && !az_units[slot] && !image_name[slot],
+            "%s: No Disk did not eject unit %d (opened %d, az_set_unit %d)", name, slot, open_n - opens, az_sets - sets);
+      CHECK(menu->form == form && menu->entry == n, "%s: after ejecting: form %d entry %d", name, menu->form, menu->entry);
+      if(depth == 0 && n == 1) shot("unit");
+      break;
+    }
     while(menu->entry) menu_do(menu, MENU_EVENT_UP);
     menu_do(menu, MENU_EVENT_SELECT);
     CHECK(menu->form == form && menu->entry == n, "%s: back from the selector: form %d entry %d", name, menu->form, menu->entry);
@@ -340,7 +393,7 @@ static void check_core_form(menu_t *menu, int core_form) {
   CHECK(menu->form == core_form && menu->entries == ULTIMA_CORES + 2, "Core form: form %d, %d entries", menu->form, menu->entries);
   shot("core");
 
-  // the running core is one of the four, and selecting it does nothing
+  // the running core is one of the five, and selecting it does nothing
   int running = 0;
   for(int i=1;i<=ULTIMA_CORES;i++) {
     const char *e = entry_at(menu->forms[core_form], i);
@@ -386,7 +439,9 @@ static void run_core(unsigned char id, const char *prefix, const char *title, in
   core_id = id;
   shot_prefix = prefix;
   set_n = 0; open_n = 0; extrom_inits = 0; bas_runs = 0; rom_boots = 0;
+  az_boots = 0; az_sets = 0; az_set_unit_last = -1; az_boot_r_count = az_boot_r_last = -1;
   for(int i=0;i<=MAX_DRIVES;i++) { free(cwd[i]); cwd[i] = NULL; free(image_name[i]); image_name[i] = NULL; }
+  for(int i=0;i<AZ_UNITS;i++) { free(az_units[i]); az_units[i] = NULL; }
 
   menu_t *menu = menu_init(&u8g2);
   menu_do(menu, MENU_EVENT_SHOW);
@@ -403,6 +458,12 @@ static void run_core(unsigned char id, const char *prefix, const char *title, in
   CHECK(open_n == 0, "an image was opened at start with no settings");
   CHECK(extrom_inits == (id == CORE_ID_KORVET), "extrom_init called %d times on core %02x", extrom_inits, id);
   CHECK(rom_boots == (id == CORE_ID_ZS256), "rom_boot called %d times on core %02x", rom_boots, id);
+  CHECK(az_boots == (id == CORE_ID_BK), "az_boot called %d times on core %02x", az_boots, id);
+  if(id == CORE_ID_BK) {
+    CHECK(az_boot_r_count == 1 && az_boot_r_last == 3, "az_boot called with R sent %d times, last %d: expected once, 3 (the machine held)",
+          az_boot_r_count, az_boot_r_last);
+    CHECK(az_sets == 0, "az_set_unit called %d times at start with no saved images", az_sets);
+  }
 
   // the settings file is the core's own, under its directory
   const ultima_core_t *c = ultima_core(id);
@@ -431,6 +492,7 @@ int main(int argc, char **argv) {
   run_core(CORE_ID_PK8000, "pk8000", "PK8000 Nano,;", 2);
   run_core(CORE_ID_KORVET, "korvet", "Korvet Nano,;", 2);
   run_core(CORE_ID_ZS256,  "zs256",  "ZS-256 Nano,;", 2);
+  run_core(CORE_ID_BK,     "bk",     "BK Nano,;",     2);
 
   printf("menu-test: %d screens in %s, %d error(s)\n", shots, outdir, errors);
   return errors ? 1 : 0;

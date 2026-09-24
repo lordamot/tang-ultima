@@ -141,7 +141,13 @@ spi_t *spi_init(void) {
   // semaphore to access the spi bus
   spi.sem = xSemaphoreCreateMutex();
 
-  xTaskCreate(spi_task, (char *)"spi_task", 512, &spi, configMAX_PRIORITIES-2, &spi_task_handle);
+  // 2048 words, not MiSTeryNano's 512 (BK Nano, 23 Sep 2026): on the BK
+  // this task serves the AZ controller's commands (azbk.c), which run
+  // FatFs - built with the long-name buffer on the stack (FF_USE_LFN 2:
+  // 512 bytes) - and the card layer's printfs from here; no other core
+  // calls FatFs from this task.  With 512 words the BK hung in its first
+  // block read with the OSD dead: the stack-overflow hook.
+  xTaskCreate(spi_task, (char *)"spi_task", 2048, &spi, configMAX_PRIORITIES-2, &spi_task_handle);
 
   /* interrupt input */
   bflb_irq_disable(gpio->irq_num);

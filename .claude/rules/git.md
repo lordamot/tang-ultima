@@ -13,9 +13,9 @@ Work onto mine branch - allowed.
 Never push.
 Always ask before commit something.
 
-This repository builds the four sibling repositories (`../tang-uknc`,
-`../tang-pk8000`, `../tang-korvet`, `../tang-zs256`) and the reconfig support lives in
-their trees.  A change there is a commit THERE, under their own
+This repository builds the five sibling repositories (`../tang-uknc`,
+`../tang-pk8000`, `../tang-korvet`, `../tang-zs256`, `../tang-bk-epta`)
+and the reconfig support lives in their trees.  A change there is a commit THERE, under their own
 `.claude/rules/git.md`, and asked for separately.
 
 ## Commit Messages
@@ -43,9 +43,10 @@ document the flash layout
 
 ## What *is* committed on purpose
 
-- **`bin/uknc.fs`, `bin/pk8000.fs`, `bin/korvet.fs`, `bin/zs256.fs`** -
-  the cores as Gowin writes them, and **`bin/uknc.bin`, `bin/pk8000.bin`,
-  `bin/korvet.bin`, `bin/zs256.bin`** - the same packed, which is what goes on the SD card
+- **`bin/uknc.fs`, `bin/pk8000.fs`, `bin/korvet.fs`, `bin/zs256.fs`,
+  `bin/bk.fs`** - the cores as Gowin writes them, and **`bin/uknc.bin`,
+  `bin/pk8000.bin`, `bin/korvet.bin`, `bin/zs256.bin`, `bin/bk.bin`** -
+  the same packed, which is what goes on the SD card
   and what the flash holds; plus **`bin/bl616.bin`**, the firmware.  So no
   toolchain is needed to use the board.  Rebuilt from the tree: `make
   cores` copies each `.fs` to `bin/` once its timing gate passes and packs

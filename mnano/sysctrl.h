@@ -21,6 +21,7 @@
 #define CORE_ID_PK8000   0x07
 #define CORE_ID_KORVET   0x08
 #define CORE_ID_ZS256    0x09
+#define CORE_ID_BK       0x0A   // BK Nano: the БК-0011М with an AZBK controller (../tang-bk-epta)
 #define CORE_ID_VIC20    0x10
 
 extern unsigned char core_id;
@@ -40,9 +41,13 @@ typedef struct {
 } sys_rtc_t;
 void sys_get_rtc(spi_t *, sys_rtc_t *);
 
-// ZS-256: bytes into the SDRAM at a 24-bit byte address (sysctrl.v's CMD 6,
-// three address bytes where the PK8000's poke has two) - romload.c
+// ZS-256 and BK: bytes into the SDRAM at a 24-bit byte address (sysctrl.v's
+// CMD 6, three address bytes where the PK8000's poke has two) - romload.c,
+// azbk.c
 void sys_poke24(spi_t *, unsigned long addr, const unsigned char *buf, int len);
+// BK: the 32-bit word holding a 24-bit byte address back out of the SDRAM
+// (sysctrl.v's CMD 8), low byte first; -1 if the core never answered - azbk.c
+int  sys_peek24(spi_t *, unsigned long addr, unsigned char *word);
 
 // tang-ultima: reload the FPGA from the next image in the flash (CMD 9)
 void sys_reconfig(spi_t *);

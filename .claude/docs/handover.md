@@ -1,3 +1,33 @@
+# Handover, 24 September 2026 - the fifth core, not yet on a board
+
+**The BK (`../tang-bk-epta`, BK Nano - the БК-0011М with MAXIOL's AZBK
+controller) is integrated as the fifth core** - built out of its tree,
+timing clean, linted, its menu walked on the host with the other four,
+the firmware built and copied to `bin/bl616.bin` (483 808 bytes).
+**Not on a board under this firmware.**  `progress.md` ("The fifth
+core") has what was checked and how, and what was not.  Nothing
+committed yet; the sibling's tree is untouched.
+
+What a board session would do, in order: `make card` (five `.bin`s
+into `/cores/`, and `/bk/` filled with the sibling's `soft/azbk/` -
+`AZ.INI`, `ROM/`, `DISKS/` - by hand; the machine does not start
+without `AZ.INI`); `make flash-mcu` (the dock alone on the PC;
+`bin/bl616.bin` is current); switch to "BK-0011M" from the Core form
+off PC power; F12 and the Debug page (the "ROM:" line from `azbk.c`
+says whether `AZ.INI` was read and how many files went in, "verify"
+how many words came back wrong).  A BK that does not come up is first
+a question for its own repository, whose `progress.md` has it running
+on a board under its own firmware since 23 Sep; what is new here is the
+merge - `menu.c`, `sysctrl.c`, `usb_host.c` - and the two generic
+changes below.
+
+Two things that changed for every core, both from the sibling's board:
+the SPI task's stack is 2048 words (`azbk.c` runs FatFs from it), and
+`sdc_read_sector()`'s waits are bounded (`sdc_timeouts()`).  Neither
+seen on a board under this firmware.
+
+---
+
 # Handover, 14 September 2026 - the fourth core
 
 **The ZS-256 (`../tang-zs256`) is integrated as the fourth core** -

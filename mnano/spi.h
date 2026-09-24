@@ -17,17 +17,21 @@
 // sends it to the core it is meant for (sysctrl.c, by core_id)
 #define SPI_SYS_RTC       6   // UKNC: read the Kakave+ clock (sysctrl.v CMD 6)
 #define SPI_SYS_POKE      6   // PK8000: an address and bytes into the machine's RAM (bas.c);
-                              // ZS-256: the same with THREE address bytes, into the SDRAM (romload.c)
-#define SPI_SYS_DEBUG     7   // PK8000/Korvet/ZS-256: the debug window - an offset, then bytes
+                              // ZS-256 and BK: the same with THREE address bytes, into the SDRAM
+                              // (romload.c, azbk.c - sys_poke24)
+#define SPI_SYS_DEBUG     7   // PK8000/Korvet/ZS-256/BK: the debug window - an offset, then bytes
 #define SPI_SYS_EXTROM    8   // Korvet: the ExtROM channel (extrom.v) - a sub-command, then bytes
-#define SPI_SYS_RECONFIG  9   // all four: A5h after it pulses RECONFIG_N.  Dormant - the pulse
+#define SPI_SYS_PEEK      8   // BK: a 32-bit word out of the SDRAM at a 24-bit byte address - three
+                              // address bytes, a pause, a ready byte, the word (sys_peek24; azbk.c's
+                              // read-back verify of the ROMs).  CMD 8, like CMD 6, is per core.
+#define SPI_SYS_RECONFIG  9   // all five: A5h after it pulses RECONFIG_N.  Dormant - the pulse
                               // does not reload this FPGA (docs/progress.md); kept because a
                               // wire from pin 48 to TP1 would make it work
-#define SPI_SYS_FLASH    10   // all four: the configuration flash, through flashwr.v - a
+#define SPI_SYS_FLASH    10   // all five: the configuration flash, through flashwr.v - a
                               // sub-command, then its bytes (flashwr.c).  "Save to flash":
                               // the running machine is written to flash address 0, which
                               // is what power-up loads.
-#define SPI_SYS_CORELOAD 11   // all four: the UART to the board's own BL616, through
+#define SPI_SYS_CORELOAD 11   // all five: the UART to the board's own BL616, through
                               // coreload.v - a sub-command, then its bytes (coreload.c).
                               // This is how a core switch happens: the wanted machine is
                               // sent to that chip and it loads the FPGA's SRAM over JTAG.
@@ -49,6 +53,9 @@
 #define SPI_SDC_MCU_READ  3   // read sector into MCU (e.g. for dir listing)
 #define SPI_SDC_INSERTED  4   // inform core that some disk image has been insered
 #define SPI_SDC_MCU_WRITE 5   // write sector from MCU
+
+// target 4 is the BK's AZ controller (azbk.h: SPI_TARGET_AZ, azctrl.v in
+// BK Nano); no other core answers it
 
 typedef struct {
 #ifndef SDL

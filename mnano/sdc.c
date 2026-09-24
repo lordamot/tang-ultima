@@ -57,17 +57,26 @@ static void hexdump(void *data, int size) {
   }
 }
 
+// The two waits below are bounded (BK Nano, 23 Sep 2026).  Unbounded, a
+// card that does not answer spins here for ever with the SPI mutex held,
+// and the OSD dies with it; bounded, the read fails, FatFs reports it,
+// the BK's AZ controller answers ERR, and its Debug page shows the count.
+static int timeouts = 0;
+int sdc_timeouts(void) { return timeouts; }
+
 int sdc_read_sector(unsigned long sector, unsigned char *buffer) {
   // check if sd card is still busy as it may
   // be reading a sector for the core. Forcing a MCU read
   // may change the data direction from core to mcu while
   // the core is still reading
   unsigned char status;
+  long guard = 200000;                 // about a second of status polls
   do {
     sdc_spi_begin(spi);  
     spi_tx_u08(spi, SPI_SDC_STATUS);
     status = spi_tx_u08(spi, 0);
     spi_end(spi);  
+    if(--guard == 0) { timeouts++; printf("sdc: busy timeout\r\n"); return -1; }
   } while(status & 0x02);   // card busy?
 
   sdc_spi_begin(spi);  
@@ -77,8 +86,10 @@ int sdc_read_sector(unsigned long sector, unsigned char *buffer) {
   spi_tx_u08(spi, (sector >> 8) & 0xff);
   spi_tx_u08(spi, sector & 0xff);
 
-  // todo: add timeout
-  while(spi_tx_u08(spi, 0));  // wait for ready
+  guard = 2000000;                     // about two seconds of byte polls
+  while(spi_tx_u08(spi, 0)) {          // wait for ready
+    if(--guard == 0) { spi_end(spi); timeouts++; printf("sdc: read timeout\r\n"); return -1; }
+  }
 
   // read 512 bytes sector data
   for(int i=0;i<512;i++) buffer[i] = spi_tx_u08(spi, 0);
@@ -142,7 +153,7 @@ static int sdc_initialize() {
 static int sdc_read(BYTE *buff, LBA_t sector, UINT count) {
   printf("sdc_read(%p,%d,%d)\r\n", buff, sector, count);
   for(UINT i = 0; i < count; i++)
-    sdc_read_sector(sector + i, buff + i * 512);
+    if(sdc_read_sector(sector + i, buff + i * 512) != 0) return RES_ERROR;
   return 0;
 }
 
@@ -290,9 +301,11 @@ static const char *drivename(int drive) {
   static const char *pk8000[] = { "Tape", "A", "B", "HDD", "ROM" };
   static const char *korvet[] = { "A", "B", "C", "D", "ROM" };
   static const char *zs256[]  = { "A", "B", "C", "D", "HDD" };
+  static const char *bk[]     = { "AZ0", "AZ1", "AZ2", "AZ3", "-" };   // never opened here: menu.c hands them to azbk.c
   if(core_id == CORE_ID_UKNC)   return uknc[drive];
   if(core_id == CORE_ID_PK8000) return pk8000[drive];
   if(core_id == CORE_ID_ZS256)  return zs256[drive];
+  if(core_id == CORE_ID_BK)     return bk[drive];
   return korvet[drive];
 }
 

@@ -89,6 +89,7 @@ USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t xbox_buffer[CONFIG_USBHOST_MAX_XB
 #include "pk8000.h"
 #include "korvet.h"
 #include "zs256.h"
+#include "bk.h"
 
 const unsigned char *keymap[] = {
   NULL,             // id 0: unknown core
@@ -100,7 +101,8 @@ const unsigned char *keymap[] = {
   keymap_agat9,     // id 6: agat9
   keymap_pk8000,    // id 7: pk8000
   keymap_korvet,    // id 8: korvet
-  keymap_zs256      // id 9: zs256
+  keymap_zs256,     // id 9: zs256
+  NULL              // id 10: BK - kbd_tx_bk() (bk.c) does the whole translation
 };
 
 const unsigned char *modifier[] = {
@@ -113,7 +115,8 @@ const unsigned char *modifier[] = {
   modifier_agat9,   // id 6: agat9
   modifier_pk8000,  // id 7: pk8000
   modifier_korvet,  // id 8: korvet
-  modifier_zs256    // id 9: zs256
+  modifier_zs256,   // id 9: zs256
+  NULL              // id 10: BK
 };
 
 void kbd_tx(spi_t *spi, unsigned char byte) {
@@ -261,7 +264,13 @@ void kbd_parse(spi_t *spi, hid_report_t *report, struct hid_kbd_state_S *state,
   if((buffer[0] != state->last_report[0]) &&
      (!osd_is_visible(usb_config.osd) || core_id == CORE_ID_UKNC)) {
     for(int i=0;i<8;i++) {
-      if(modifier[core_id][i]) {      
+      if(core_id == CORE_ID_BK) {
+        // the BK: РУС, ЛАТ, СУ and АР2 are modifiers with their own codes (bk.c)
+        if((state->last_report[0] & (1<<i)) && !(buffer[0] & (1<<i)))
+          kbd_tx_bk(spi, 0xe0 + i, buffer[0], 0);
+        if(!(state->last_report[0] & (1<<i)) && (buffer[0] & (1<<i)))
+          kbd_tx_bk(spi, 0xe0 + i, buffer[0], 1);
+      } else if(modifier[core_id] && modifier[core_id][i]) {
 	// modifier released?
 	if((state->last_report[0] & (1<<i)) && !(buffer[0] & (1<<i)))
 	  kbd_key(spi, 0xe0 + i, modifier[core_id][i], 0);
@@ -292,8 +301,10 @@ void kbd_parse(spi_t *spi, hid_report_t *report, struct hid_kbd_state_S *state,
     if(state->last_report[2+i]) {
       int still = 0;
       for(int j=0;j<6;j++) if(buffer[2+j] == state->last_report[2+i]) still = 1;
-      if(!still)
-	kbd_key(spi, state->last_report[2+i], keymap[core_id][state->last_report[2+i]], 0);
+      if(!still) {
+	if(core_id == CORE_ID_BK) kbd_tx_bk(spi, state->last_report[2+i], buffer[0], 0);
+	else if(keymap[core_id]) kbd_key(spi, state->last_report[2+i], keymap[core_id][state->last_report[2+i]], 0);
+      }
     }
 
     // key pressed?  (in this report, not in the last one)
@@ -314,8 +325,10 @@ void kbd_parse(spi_t *spi, hid_report_t *report, struct hid_kbd_state_S *state,
 	if(buffer[2+i] == 0x45 || (osd_is_visible(usb_config.osd) && buffer[2+i] == 0x29))
 	  msg = osd_is_visible(usb_config.osd)?MENU_EVENT_HIDE:MENU_EVENT_SHOW;
 	else {
-	  if(!osd_is_visible(usb_config.osd))
-	    kbd_key(spi, buffer[2+i], keymap[core_id][buffer[2+i]], 1);
+	  if(!osd_is_visible(usb_config.osd)) {
+	    if(core_id == CORE_ID_BK) kbd_tx_bk(spi, buffer[2+i], buffer[0], 1);
+	    else if(keymap[core_id]) kbd_key(spi, buffer[2+i], keymap[core_id][buffer[2+i]], 1);
+	  }
 	  else {
 	    // check if cursor up/down or space has been pressed
 	    if(buffer[2+i] == 0x51) msg = MENU_EVENT_DOWN;      

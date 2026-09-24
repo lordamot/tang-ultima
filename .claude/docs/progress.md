@@ -614,6 +614,90 @@ What was NOT verified here, and what the board report did not itemise:
   hand (`make card` says so); the machine executes zeros without them.
 - The key-report change on the other three cores.
 
+## The fifth core, 24 September 2026 - the BK, built and walked, NOT on a board
+
+`../tang-bk-epta` (BK Nano: the БК-0011М with MAXIOL's AZBK controller,
+started 19 Sep 2026 on ZS-256 Nano's method and written to be a core
+of this repository from the start; its own `progress.md` has it running
+Dangerous Dave on a board under its own firmware, 23 Sep) is the fifth
+core.  Nothing in the switch changed for it; what changed is every
+place the number four was written down, and two generic things the
+sibling found on its board.
+
+What was verified, and how:
+
+- **The BK has all the reconfig support already**: its
+  `mister/coreload.v` and `mister/flashwr.v` are byte-identical to
+  ZS-256 Nano's (cmp), its `sysctrl.v` decodes CMD 9, 10 and 11 and
+  answers CMD 0 with id 10, `gowin_tcl.py --abs` and the PnR-dir
+  argument of `timing_check.py` are there, `"MSPI": true` and
+  `"RECONFIG_N": false` are in its process config, and its `.cst` has
+  `mspi_*` on 59/60/61/62, `uart_tx`/`uart_rx` on 69/70, `reconfig_n`
+  on 48 - and the PnR pin report of the build here says the same (all
+  bank 3 but the UART's bank 1).  **Nothing in the sibling's tree was edited**; its `git
+  status` is what it was (one untracked file of its own).
+- **`make core-bk` builds out of the sibling's tree**: logic
+  11576/20736 (56%), registers 35%, timing gate clean (0 setup, 0 hold
+  violated over clk27, clk64, the two PLLs' outputs and spi_clk).
+  `bin/bk.bin` is 907 418 bytes like the other four, byte-identical to
+  Gowin's own `impl/pnr/bk.bin`, `a5 c3` at 0x16, IDCODE `0x0000081b`
+  at 0x1c; an install would be the same 14 block erases and 3545 page
+  writes.
+- **`make lint-bk`**: ok.
+- **`make fw` builds**: 483 808 bytes (was 469 296), copied to
+  `bin/bl616.bin`.  What went in: `CORE_ID_BK` 10, `azbk.c/h` and
+  `bk.c/h` verbatim from the sibling (`AZ_ROOT` is `/sd/bk`, which is
+  `ultima_cores[]`'s `"bk"` - by hand, as the sibling reads the same
+  folder), `sys_peek24()` (CMD 8 with a ready byte - the BK's meaning
+  of the command; the Korvet's ExtROM is CMD 8 too, and each is only
+  sent to its own core), `SPI_SYS_PEEK`, irq 4 dispatched to
+  `az_handle_event()` on core 10 and `extrom_handle_event()` otherwise,
+  `kbd_tx_bk()` on the modifier, release and press paths of
+  `usb_host.c` with `keymap[10]`/`modifier[10]` NULL and checked, the
+  BK's forms with `S,Core,2`, About, variables, `menu_bk_mount()` for
+  the four AZ unit slots (never `sdc_image_open`), `menu_bk_boot()`
+  between `R=3` and `R=0`, its own Debug page byte map with `azbk.c`'s
+  lines after it, `drivename()` "AZ0..AZ3 -", `ultima_cores[]` fifth
+  entry "BK-0011M", `ULTIMA_CORES` 5, the Core form's fifth `C` entry.
+  The only warnings in the build are the two that were there before
+  (an unused `hexdump`, `M0S_DOCK` redefined).
+- **Two of the sibling's changes are now in every core's build**: the
+  SPI task's stack is 2048 words instead of 512 (`spi.c` - `azbk.c`
+  serves the AZ's block reads from that task through FatFs, and the
+  sibling's fourth board hung in its first read with the OSD dead on
+  512), and `sdc_read_sector()`'s two waits are bounded, a failed wait
+  counted by `sdc_timeouts()` and returned to FatFs as `RES_ERROR`
+  (before: `// todo: add timeout`, and a card that stopped answering
+  spun for ever with the SPI mutex held).  **Not seen on a board on any
+  core under this firmware.**
+- **`make menu-test`: 50 screens, 0 errors** over five cores (was 40
+  over four): every BK form walked, the Core form seven entries on
+  every core with the running one marked and "Save to flash" last, and
+  new checks that on the BK `az_boot()` is called once with `R=3` sent
+  and `R=0` not yet (the machine held while the ROMs arrive), that no
+  `sdc_image_open` happens at start, and that picking a file in an AZ
+  unit's selector calls `az_set_unit()` with `/sd/bk/GAME.img`, opens
+  nothing in `sd_card.v`, remembers the name in the slot, closes the
+  OSD, reopens on the file, and "No Disk" unmounts it the same way.
+
+What was NOT verified here:
+
+- **The BK on a board under this firmware, at all.**  Its own
+  repository has it running on a board under its own firmware; this is
+  the same core built here and the same `azbk.c`, but the merge is by
+  hand and that is an argument.  The switch to it, its keyboard through
+  the merged `usb_host.c`, its disks through the AZ, "Save to flash"
+  with it: none seen.
+- `/sd/bk/` must be filled by hand with MAXIOL's card package
+  (`../tang-bk-epta/soft/azbk/`: `AZ.INI`, `ROM/`, `DISKS/`; the
+  sibling's `make card` stages it); `make card` here says so.  Without
+  `AZ.INI` the machine restarts for ever on empty memory.
+- The 2048-word SPI task and the bounded card waits on the other four
+  cores.
+- The FreeRTOS heap after the larger task: the firmware links and the
+  SDK's static allocation sizes it; whether anything else was near the
+  limit is not measured.
+
 ## Defects
 
 1. **RECONFIG_N driven from user logic does not reload this FPGA.**  Not in

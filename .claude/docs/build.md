@@ -3,22 +3,22 @@
 What ships prebuilt, so a user needs no toolchain:
 
 ```
-bin/<core>.fs   uknc pk8000 korvet zs256     the four cores, Gowin's ASCII form
+bin/<core>.fs   uknc pk8000 korvet zs256 bk  the five cores, Gowin's ASCII form
 bin/<core>.bin                               the same packed - what the flash
                                              holds and what goes on the card
 bin/bl616.bin                                the firmware
 ```
 
 There are no slots: the flash holds one bitstream, at address 0, and the
-card holds all four.  `.claude/docs/coreswitch.md` says why.
+card holds all five.  `.claude/docs/coreswitch.md` says why.
 
 Everything builds here; `tools/` holds the toolchain (`make toolchain`,
 ~8 GB; on this host hard-linked from `../tang-korvet/tools/`, same
-inodes) and the four sibling repositories must sit beside this one.
+inodes) and the five sibling repositories must sit beside this one.
 
 ```
-make cores         all four -> bin/<c>.fs and bin/<c>.bin
-make core-<c>      one of uknc, pk8000, korvet, zs256
+make cores         all five -> bin/<c>.fs and bin/<c>.bin
+make core-<c>      one of uknc, pk8000, korvet, zs256, bk
 make card          say which files to copy onto the SD card
 make fw            the firmware -> build/fw/bl616.bin  (copy to bin/ by hand)
 make menu-test     the OSD on the host, every form of every core -> build/menu/*.png

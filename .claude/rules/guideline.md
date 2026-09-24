@@ -5,16 +5,17 @@
 All discussions in english.
 All code except text strings must be in english.  Russian appears in
 comments only where it is a machine's own name for a thing (УКНЦ, Сура,
-Корвет, ОПТС, ВВ55) - the way the four sibling repositories do it.
+Корвет, ОПТС, ВВ55) - the way the five sibling repositories do it.
 
 ## Project
 
-Never work outside the repository root - except in the four siblings
-(`../tang-uknc`, `../tang-pk8000`, `../tang-korvet`, `../tang-zs256`), which this
-repository builds and which carry the reconfig support; an edit there
-follows THEIR `.claude/rules/` and is committed there, when asked.
+Never work outside the repository root - except in the five siblings
+(`../tang-uknc`, `../tang-pk8000`, `../tang-korvet`, `../tang-zs256`,
+`../tang-bk-epta`), which this repository builds and which carry the
+reconfig support; an edit there follows THEIR `.claude/rules/` and is
+committed there, when asked.
 
-All of this repository builds here: the four cores with `make cores`
+All of this repository builds here: the five cores with `make cores`
 (gw_sh out of the siblings' trees into `build/cores/`), the firmware
 with `make fw`, the menu on the host with `make menu-test`.  The
 toolchain is fetched into `tools/` by `make toolchain` (on this host,
@@ -63,14 +64,14 @@ before researching it yourself.
    (v1.3) for what a pin actually reaches - which is how pin 9 was found
    to end at test pad TP1 and nowhere else.  The flash is a Winbond
    W25Q64, 64 Mbit, JEDEC ID `ef4017`, confirmed by openFPGALoader.
-5. **The four siblings' docs** for everything about the machines and the
+5. **The five siblings' docs** for everything about the machines and the
    MiSTeryNano link; this repository adds one command to it and repeats
    nothing.
 
 ## Editing
 
 - The flash holds one bitstream at address 0 and the card holds all
-  four, so the names must agree in two places: the Makefile's `CORES`
+  five, so the names must agree in two places: the Makefile's `CORES`
   and `DEFAULT_CORE`, and `mnano/ultima.c`'s `ultima_cores[]`, whose
   `dir` field names both the card directory and `/cores/<dir>.bin`.
 - Anything that writes flash address 0 is writing the only thing the board
@@ -78,8 +79,9 @@ before researching it yourself.
   and keep `tools/mkimage.py` checking the same fields.
 - A change to a core's menu, keyboard or SD layout belongs to the core's
   own repository first; this firmware carries a copy of each and the
-  four must be kept the same by hand (there is no mechanism), so say
-  so when one moves.
+  five must be kept the same by hand (there is no mechanism), so say
+  so when one moves.  The BK's `azbk.c` and `bk.c` are the sibling's
+  files verbatim; the hooks are in `menu.c`, `sysctrl.c`, `usb_host.c`.
 - The card and the flash share the m0s link, so nothing may ask the card
   for a sector while a page program is in flight: `ultima_switch()` closes
   every image first.  (`sys_irq_hold` is from the MultiBoot design, when
@@ -101,7 +103,9 @@ before researching it yourself.
   JTAG byte-identical, and booted.  What is NOT: how long an install takes,
   the loading rate, the other cores installed and booted, "Save to flash"
   with the ZS-256 (added 14 Sep 2026, seen running on the board that
-  evening), and every machine's own behaviour under this firmware rather
+  evening), **the BK at all under this firmware** (added 24 Sep 2026:
+  built, timed, linted, walked on the host - not yet switched to on a
+  board), and every machine's own behaviour under this firmware rather
   than its own.
 
 ## The prompts/ folder
@@ -114,8 +118,8 @@ finishes**, unasked; never rewrite an entry already there.
 
 ## Main goal
 
-One Tang Nano 20K that is the УКНЦ, the ПК8000 or the Корвет at the
-user's choice from the OSD, with each machine exactly what its own
+One Tang Nano 20K that is the УКНЦ, the ПК8000, the Корвет, the ZS-256
+or the БК-0011М at the user's choice from the OSD, with each machine exactly what its own
 repository makes it, its files in its own folder on the card, and the
 choice remembered across power cycles.
 
