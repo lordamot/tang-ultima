@@ -732,6 +732,28 @@ itself still has not been switched to here (see the fifth core).
 With the Debug page gone, a board session learns whether `AZ.INI` was
 read only from the machine starting, or from the dock's serial log.
 
+## The UKNC's sound, 25 September 2026 - built and walked, NOT on a board
+
+UKNC Nano's f355cb3 and 7e41117 (its 26b42dc): `mixer.v` models the
+Aberrant module's output stage - ABC stereo, the 0.66 Hz coupling as a
+DC blocker, a 4.87 kHz low-pass, a 64-sample mean feeding `hdmi_tx` -
+and an "Old freaks" bass shelf with a soft limiter; the `fifo_audio` IP
+is gone.  The Verilog comes from the sibling's tree as always.  The
+firmware's copy of the UKNC menu was changed by hand to match: three
+lines at the end of the Aberrant form (Stereo 'o' Mono|ABC, Low-pass
+'l', Old freaks 'g') and their defaults 1, 1, 0 in `variables_uknc[]`.
+
+What was verified: `make bin/uknc.fs` from the sibling's tree - logic
+12722/20736 (62%, was 54% before the mixer), registers 34%, timing gate
+0 setup / 0 hold violated, `mspi_*` on 59-62 and the UART on 69/70;
+`bin/uknc.bin` 907 418 bytes, IDCODE checked by `mkimage.py`.  `make
+lint-uknc` ok.  `make menu-test` 49 screens, 0 errors.  `make fw`
+builds, 482 096 bytes, copied to `bin/bl616.bin`.  The sibling's tree
+untouched.
+
+NOT verified: any of it on a board under this firmware, and the sound
+itself - the sibling's own log says its build is "not yet heard" either.
+
 ## Defects
 
 1. **RECONFIG_N driven from user logic does not reload this FPGA.**  Not in
