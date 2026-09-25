@@ -1,0 +1,13 @@
+update bk core with recent patch added to ../tang-bk-epta
+
+********************************************************************************
+
+The BK core is updated to BK Nano's 5163f79 (its 0.1.21 -> 0.1.28): the "Covox 177714" Hardware switch, Off by default, which fixes Dangerous Dave's buzz, and no Debug page.
+
+The verilog comes from the sibling's tree, so nothing had to be copied for it. The firmware carries a copy of the BK's menu, so mnano/menu.c was changed by hand to match: the Covox line in the Hardware form, 'c' = 0 in variables_bk[], and the Debug entry and its BK code removed. azbk.c and bk.c did not change.
+
+Checked: make core-bk meets timing (0 setup, 0 hold; logic 58%), bin/bk.bin is byte-identical to Gowin's, make lint-bk ok, make menu-test 49 screens and 0 errors, make fw builds (482 000 bytes, copied to bin/bl616.bin). Not checked: any of it on a board. The BK still hasn't been run on a board under this firmware.
+
+One Makefile fix: make core-<x> used to stop at the .fs and leave bin/<x>.bin stale. It now packs the .bin as well.
+
+progress.md and handover.md are updated. Nothing is committed and the sibling's tree is untouched.
