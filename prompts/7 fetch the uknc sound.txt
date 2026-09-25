@@ -1,0 +1,18 @@
+fetch recent sound patches for ../tang-uknc core
+
+********************************************************************************
+
+The UKNC core now includes UKNC Nano's two sound commits, f355cb3 and 7e41117 (the sibling's head is 26b42dc, already the same as origin/main, so there was nothing new to pull). mixer.v models the Aberrant module's output stage: ABC stereo, a DC blocker and a 4.87 kHz low-pass. There is also an "Old freaks" setting with a bass shelf and a soft limiter, and the fifo_audio IP is gone.
+
+The Verilog comes from the sibling's tree, so nothing had to be copied for it. The firmware carries a copy of the UKNC menu, so mnano/menu.c was changed by hand to match: Stereo (o), Low-pass (l) and Old freaks (g) at the end of the Aberrant form, with defaults ABC, On and Off in variables_uknc[].
+
+Checked:
+- UKNC core built: logic 62%, timing gate 0 setup / 0 hold, MSPI and UART pins in place.
+- bin/uknc.bin repacked and its IDCODE checked.
+- lint-uknc ok.
+- menu-test: 49 screens, 0 errors.
+- make fw builds and was copied to bin/bl616.bin.
+
+Not checked: any of it on a board, or how it sounds. The sibling's own log says its build is "not yet heard" either.
+
+progress.md is updated. Nothing is committed and the sibling's tree is untouched.
