@@ -136,7 +136,7 @@ toolchain:
 # the .fs is copied to bin/.  The sibling's tree is read, never written.
 #-----------------------------------------------------------------------
 define CORE_RULES
-core-$(1): bin/$(1).fs
+core-$(1): bin/$(1).fs bin/$(1).bin
 
 bin/$(1).fs: $$(BUILD)/cores/$(1)/impl/pnr/$$(NAME_$(1)).fs
 	@$$(PYTHON) $$(DIR_$(1))/tools/timing_check.py $$(BUILD)/cores/$(1)/impl/pnr || { \

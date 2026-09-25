@@ -1,3 +1,15 @@
+# Handover, 25 September 2026 - the BK at 0.1.28
+
+BK Nano's latest (the "Covox 177714" switch, Off by default - the fix
+for Dangerous Dave's buzz - and no Debug page) is built into
+`bin/bk.fs`/`bin/bk.bin` and the firmware (`bin/bl616.bin`, 482 000
+bytes).  `progress.md` ("The BK brought to 0.1.28") has what was
+checked.  Still not on a board under this firmware.  One change to the
+24 Sep plan below: the BK has no Debug page now, so its "ROM:" line
+is not on the OSD - a BK that starts is the check.
+
+---
+
 # Handover, 24 September 2026 - the fifth core, not yet on a board
 
 **The BK (`../tang-bk-epta`, BK Nano - the БК-0011М with MAXIOL's AZBK

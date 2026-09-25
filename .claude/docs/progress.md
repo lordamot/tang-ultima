@@ -698,6 +698,40 @@ What was NOT verified here:
   SDK's static allocation sizes it; whether anything else was near the
   limit is not measured.
 
+## The BK brought to 0.1.28, 25 September 2026 - built and walked, NOT on a board
+
+BK Nano's commit `5163f79` (25 Sep, its 0.1.21 -> 0.1.28): Dangerous
+Dave's buzz was the legacy 8-bit Covox on 177714 playing the AY's
+register writes; a new Hardware switch "Covox 177714" (`'c'`, Off by
+default, "AZ setup" the old behaviour) gates it in `azsound.v`
+through `sysctrl.v`'s `system_covox`, and the OSD's Debug page is gone
+at the operator's word (the core's dbg bus stays, for the testbench).
+The sibling has it working on its board under its own firmware.
+
+What changed here: `mnano/menu.c` only, by hand from the sibling's -
+the Hardware form's `L,Covox 177714:,Off|AZ setup,c;`, `{ 'c', { 0 }}`
+in `variables_bk[]`, `T,Debug,;` out of the BK's main form and the BK
+branch out of `menu_debug_open()` (nothing reaches it).  `azbk.c/h`
+and `bk.c/h` did not change (cmp).  The About text still has no
+version in it, as before.  And the Makefile: `make core-<x>` now packs
+`bin/<x>.bin` too - it stopped at the `.fs`, and a `make core-bk`
+left the card's `bin/bk.bin` at yesterday's core (caught by cmp
+against Gowin's).
+
+What was verified: `make core-bk` from the sibling's tree - logic
+11917/20736 (58%), registers 35%, timing gate 0 setup / 0 hold
+violated; `bin/bk.bin` 907 418 bytes, byte-identical to Gowin's
+`impl/pnr/bk.bin`, IDCODE checked by `mkimage.py`.  `make lint-bk`
+ok.  `make menu-test` 49 screens, 0 errors (one fewer: the BK's
+Debug page); the Hardware form shows the Covox line.  `make fw`
+builds, 482 000 bytes, copied to `bin/bl616.bin`.  The sibling's tree
+untouched.
+
+NOT verified: any of it on a board under this firmware - the BK
+itself still has not been switched to here (see the fifth core).
+With the Debug page gone, a board session learns whether `AZ.INI` was
+read only from the machine starting, or from the dock's serial log.
+
 ## Defects
 
 1. **RECONFIG_N driven from user logic does not reload this FPGA.**  Not in
