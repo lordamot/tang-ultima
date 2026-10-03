@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- The USB mouse on a combined receiver (Logitech 046d:c534, keyboard and
+  mouse in one): HID transfers ask for the endpoint's whole packet into
+  64-byte buffers - the receiver's mouse interface sends up to 20 bytes
+  and 8 were asked for, so the mouse never moved.  From Evo Nano's board
+  (`../retro-tang-evo`), where it made the mouse work; built, not tried
+  on this board.
+
 - **A fifth core: the BK** (`../tang-bk-epta`, BK Nano - the БК-0011М
   with MAXIOL's AZBK controller).  `make core-bk`, `bin/bk.fs` and
   `bin/bk.bin`, `/sd/cores/bk.bin`, `/sd/bk/` on the card with `bk.ini`

@@ -366,6 +366,18 @@ Close enough to the arithmetic's ten-odd seconds, and cheap enough that the
 flash-to-flash copy engine is **not worth building**: 20 s to change
 machines, once, is not a cost anyone will notice.
 
+## The USB mouse on a combined receiver, 2 October 2026
+
+The USB mouse on a combined receiver (2 Oct 2026, from Evo Nano's
+board): a Logitech receiver with keyboard and mouse in one (046d:c534)
+sends up to 20-byte packets on its mouse interface, and `usb_host.c`
+asked for the parsed report alone (8 bytes) into an 8-byte buffer - an
+overrun the client loop never cleared, so the mouse never moved.  Fixed
+in `usb_host.c` (the endpoint's packet size, a 64-byte buffer;
+`mcu.md`'s "USB HID transfers"), copied from `../retro-tang-evo`, where
+it made the mouse work on the board.  `make fw` builds; not tried on
+this board, not in `bin/`.
+
 ## What is next
 
 The mechanism is done.  What is left is polish and the things a second

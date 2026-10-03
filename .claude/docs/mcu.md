@@ -91,6 +91,21 @@ there).  A `drive<n>=/sd/...` line in an `.ini` may name any path on the
 card.  `ultima_boot()` creates the running core's directory when it is
 missing.
 
+## USB HID transfers
+
+Each HID interface's client thread (`usb_host.c`) asks for the
+interrupt endpoint's whole packet (`wMaxPacketSize`, at most
+`MAX_REPORT_SIZE` = 64 bytes) and then takes the report the parser chose
+by its id and its size.  Until 2 Oct 2026 it asked for that report alone
+(plus its id) into 8-byte buffers: a Logitech receiver with keyboard and
+mouse in one (046d:c534) sends up to 20 bytes on its mouse interface -
+its HID++ reports 10h and 11h, consumer 3 and system 4 share the endpoint
+with the mouse's report 2 - a packet longer than the transfer is an
+error the client loop never clears, and the mouse never moved.  Found
+with that receiver on Evo Nano's board (`../retro-tang-evo`, its
+`progress.md`), where the fix made the mouse work; copied here, built,
+not tried on this core's board.
+
 ## The menu
 
 Each core's forms are its own repository's (their `mcu.md` has the
