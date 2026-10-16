@@ -868,3 +868,26 @@ make siblings-check now checks those and all six shipped binaries, as well
 as the original firmware-source snapshots. All repositories pass diff --check.
 Each sibling has SHARED-COMPANION.md, README notes and a progress entry.
 No commits, pushes, flashing, board validation, FPGA builds, timing or lint.
+
+
+## 16 October 2026: commit and publish the shared companion
+
+The user explicitly authorized all six commits and pushes, overriding the
+standing no-push rule for this task. All six feature commits were pushed
+and their remote main tips verified:
+
+tang-ultima 9d8f919a09a6b113e3ac78e97d0c22b87caf18bd
+tang-uknc be4fbfb944e057c7a0439ad9bdcb107605fa19f5
+tang-pk8000 c030a04f3b51a18e741672d7893f290afdd00a67
+tang-korvet 4ffd22703a10586a36e5cd95b4d613cd614b7b75
+tang-zs256 0275962a3b5cb6894258dc05430f4daf5a0b4a6d
+tang-bk-epta 098ec56f39f763caa8d1fb8305720fee377c5dd4
+
+Authentication: SSH failed with publickey denied. The GitHub CLI login was
+valid outside the sandbox; explicit HTTPS URLs plus gh's git-credential
+helper published the branches, without changing stored SSH remote URLs.
+Normal pushes also included the pre-existing unpublished card-layout commit
+in Korvet and the two pre-existing commits in BK (USB packet size and card
+layout). No force pushes or merges were needed. BK's pre-existing untracked
+AGENTS.md was excluded. All six firmware binaries remain identical; no
+hardware was flashed. A final documentation commit records this publication.

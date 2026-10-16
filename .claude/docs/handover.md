@@ -1,3 +1,23 @@
+# Handover, 16 October 2026: committed and published
+
+The shared JSON companion and all five sibling integrations are committed
+and pushed to origin/main. All six remote feature tips were verified:
+
+tang-ultima 9d8f919a09a6b113e3ac78e97d0c22b87caf18bd
+tang-uknc be4fbfb944e057c7a0439ad9bdcb107605fa19f5
+tang-pk8000 c030a04f3b51a18e741672d7893f290afdd00a67
+tang-korvet 4ffd22703a10586a36e5cd95b4d613cd614b7b75
+tang-zs256 0275962a3b5cb6894258dc05430f4daf5a0b4a6d
+tang-bk-epta 098ec56f39f763caa8d1fb8305720fee377c5dd4
+
+The following documentation commit records the publication. Stored origin
+URLs remain SSH; this session used explicit HTTPS and the existing gh
+credential helper because no SSH authentication agent was available.
+BK's pre-existing AGENTS.md remains untracked. No board was flashed or
+tested. Build checks and byte-identical shipped firmware are documented below.
+
+---
+
 # Handover, 16 October 2026: all five sibling build paths connected
 
 The shared JSON companion is now connected in all five actual siblings:
