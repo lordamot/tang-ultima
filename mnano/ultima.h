@@ -30,19 +30,21 @@
 
 typedef struct {
   unsigned char id;      // sysctrl.h's CORE_ID_*, what the core answers CMD 0 with
-  const char   *name;    // as the OSD shows it
-  const char   *dir;     // its directory on the card, under CARD_MOUNTPOINT
-  const char   *ini;     // its settings file, under that directory
+  char name[32];         // as the OSD shows it
+  char dir[80];          // its directory on the card, under CARD_MOUNTPOINT
+  char ini[80];          // settings, relative to that directory
+  char bitstream[120];   // relative to the card root
+  char profile[120];     // JSON profile, relative to the card root
 } ultima_core_t;
 
 // the five, in the Makefile's CORES order
-extern const ultima_core_t ultima_cores[];
+extern ultima_core_t ultima_cores[];
 #define ULTIMA_CORES 5
 
 // where the installed core is recorded, on the card's root
 #define ULTIMA_INI   CARD_MOUNTPOINT "/ultima.ini"
-// and where the bitstreams live: /sd/cores/uknc.bin and its four siblings
-#define ULTIMA_COREDIR CARD_MOUNTPOINT "/cores"
+// Bitstream and profile paths come from /sd/companion.json (or its
+// embedded defaults, generated from config/companion.json).
 
 // the table entry of a core id, or NULL for a core not in the ring
 const ultima_core_t *ultima_core(unsigned char id);

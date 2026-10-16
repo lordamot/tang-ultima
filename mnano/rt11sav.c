@@ -351,6 +351,7 @@ int main(int argc, char **argv) {
 // ---------------------------------------------------------------------
 #include <ff.h>
 #include "sdc.h"
+#include "companion.h"
 
 static int fat_read(void *ctx, unsigned blk, void *buf) {
   UINT n;
@@ -375,8 +376,8 @@ int rt11sav_make(const char *dir, const char *name, unsigned date, char *err, in
 
   sdc_lock();
 
-  if(f_open(&base, RT11SAV_DIR "/" RT11SAV_BASE, FA_OPEN_EXISTING | FA_READ) != FR_OK &&
-     f_open(&base, RT11SAV_DIR "/" RT11SAV_BASE2, FA_OPEN_EXISTING | FA_READ) != FR_OK) {
+  if(f_open(&base, companion_resource("sav_base"), FA_OPEN_EXISTING | FA_READ) != FR_OK &&
+     f_open(&base, companion_resource("sav_base_alt"), FA_OPEN_EXISTING | FA_READ) != FR_OK) {
     reason = "no RT11 base"; goto out;
   }
   have_base = 1;
@@ -390,7 +391,7 @@ int rt11sav_make(const char *dir, const char *name, unsigned date, char *err, in
   have_sav = 1;
   if(f_size(&sav) == 0) { reason = "empty SAV"; goto out; }
 
-  if(f_open(&out, RT11SAV_DIR "/" RT11SAV_DISK, FA_CREATE_ALWAYS | FA_WRITE | FA_READ) != FR_OK) {
+  if(f_open(&out, companion_resource("sav_disk"), FA_CREATE_ALWAYS | FA_WRITE | FA_READ) != FR_OK) {
     reason = "cannot write"; goto out;
   }
   have_out = 1;

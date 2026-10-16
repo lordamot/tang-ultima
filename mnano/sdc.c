@@ -11,6 +11,7 @@
 #include <string.h>
 #include "sysctrl.h"
 #include "ultima.h"
+#include "companion.h"
 
 // enable to use old way to determine cluster position
 // #define USE_FSEEK
@@ -265,30 +266,29 @@ static char *image_name[MAX_DRIVES + 1] = { NULL, NULL, NULL, NULL, NULL, NULL }
 
 // remember a name for a slot without opening anything (SDC_SLOT_EXTRA)
 void sdc_set_image_name(int drive, const char *name) {
+  if(drive < 0 || drive > MAX_DRIVES) return;
   if(image_name[drive]) free(image_name[drive]);
   image_name[drive] = name ? strdup(name) : NULL;
 }
 
 void sdc_set_default(int drive, const char *name) {
-  // a valid filename will currently always begin with /sd
-  if(strncasecmp(name, CARD_MOUNTPOINT, strlen(CARD_MOUNTPOINT)) == 0) {
-    // name should consist of path and image name
-    char *p = strrchr(name+strlen(CARD_MOUNTPOINT), '/');
-    if(p && *p) {
-      if(cwd[drive]) free(cwd[drive]);
-      cwd[drive] = strndup(name, p-name);
-      if(image_name[drive]) free(image_name[drive]);
-      image_name[drive] = strdup(p+1);
-    }
-  }
+  char path[COMPANION_PATH];
+  if(drive < 0 || drive > MAX_DRIVES || !name ||
+     companion_path(path, sizeof(path), ultima_root(), name)) return;
+  if(!strcmp(path, CARD_MOUNTPOINT)) return;
+  char *p = strrchr(path, '/');
+  if(!p || !p[1]) return;
+  char *new_cwd = strndup(path, p-path), *new_name = strdup(p+1);
+  if(!new_cwd || !new_name) { free(new_cwd); free(new_name); return; }
+  free(cwd[drive]); free(image_name[drive]);
+  cwd[drive] = new_cwd; image_name[drive] = new_name;
 }
 
 char *sdc_get_image_name(int drive) {
-  return image_name[drive];
+  return drive >= 0 && drive <= MAX_DRIVES ? image_name[drive] : NULL;
 }
-
 char *sdc_get_cwd(int drive) {
-  return cwd[drive];
+  return drive >= 0 && drive <= MAX_DRIVES ? cwd[drive] : NULL;
 }
 
 int sdc_is_ready(void) {
@@ -296,18 +296,7 @@ int sdc_is_ready(void) {
 }
 
 // the image slots (sd_card.v's image_mounted index) as each core uses them
-static const char *drivename(int drive) {
-  static const char *uknc[]   = { "FDD0", "FDD1", "FDD2", "FDD3", "HDD" };
-  static const char *pk8000[] = { "Tape", "A", "B", "HDD", "ROM" };
-  static const char *korvet[] = { "A", "B", "C", "D", "ROM" };
-  static const char *zs256[]  = { "A", "B", "C", "D", "HDD" };
-  static const char *bk[]     = { "AZ0", "AZ1", "AZ2", "AZ3", "-" };   // never opened here: menu.c hands them to azbk.c
-  if(core_id == CORE_ID_UKNC)   return uknc[drive];
-  if(core_id == CORE_ID_PK8000) return pk8000[drive];
-  if(core_id == CORE_ID_ZS256)  return zs256[drive];
-  if(core_id == CORE_ID_BK)     return bk[drive];
-  return korvet[drive];
-}
+static const char *drivename(int drive) { return companion_drive_name(drive); }
 
 // Read sector 0 of the freshly opened image and derive sectors/track,
 // heads and the inversion flag the way UKNCBTL's CHardDrive::AttachImage
@@ -468,34 +457,20 @@ static int sdc_image_inserted(char drive, unsigned long size) {
 }
 
 int sdc_image_open(int drive, char *name) {
-  // tell core that the "disk" has been removed
+  if(drive < 0 || drive >= MAX_DRIVES) return -1;
+  char fname[COMPANION_PATH];
+  if(name && companion_path(fname, sizeof(fname), cwd[drive] ? cwd[drive] : ultima_root(), name)) return -1;
+
   sdc_image_inserted(drive, 0);
-
-  // forget about any previous name
-  if(image_name[drive]) {
-    free(image_name[drive]);
-    image_name[drive] = NULL;
-  }
-  
-  // nothing to be inserted? Do nothing!
-  if(!name) return 0;
-
-  // assemble full name incl. path
-  char fname[strlen(cwd[drive]) + strlen(name) + 2];
-  strcpy(fname, cwd[drive]);
-  strcat(fname, "/");
-  strcat(fname, name);
-
   sdc_lock();
-  
-  // close any previous image, especially free the link table
-  if(fil[drive].cltbl) {
-    printf("freeing link table\r\n");
-    free(lktbl[drive]);
-    lktbl[drive] = NULL;
-    fil[drive].cltbl = NULL;
-  }
-  
+  if(fil[drive].obj.fs) f_close(&fil[drive]);
+  free(lktbl[drive]);
+  lktbl[drive] = NULL;
+  fil[drive].cltbl = NULL;
+  free(image_name[drive]);
+  image_name[drive] = NULL;
+  if(!name) { sdc_unlock(); return 0; }
+
   printf("Mounting %s\r\n", fname);
 
   if(f_open(&fil[drive], fname, FA_OPEN_EXISTING | FA_READ) != 0) {
@@ -510,7 +485,8 @@ int sdc_image_open(int drive, char *name) {
 	   (unsigned long)fil[drive].obj.objsize / 512 / fs.csize);      
     
     // try with a 16 entry link table
-    lktbl[drive] = malloc(16 * sizeof(DWORD));    
+    lktbl[drive] = malloc(16 * sizeof(DWORD));
+    if(!lktbl[drive]) { f_close(&fil[drive]); sdc_unlock(); return -1; }
     fil[drive].cltbl = lktbl[drive];
     lktbl[drive][0] = 16;
     
@@ -521,12 +497,20 @@ int sdc_image_open(int drive, char *name) {
 	     "required size: %d\r\n", lktbl[drive][0]);
 
       // re-alloc sufficient memory
-      lktbl[drive] = realloc(lktbl[drive], sizeof(DWORD) * lktbl[drive][0]);
+      DWORD *larger = realloc(lktbl[drive], sizeof(DWORD) * lktbl[drive][0]);
+      if(!larger) {
+        f_close(&fil[drive]);
+        free(lktbl[drive]); lktbl[drive] = NULL; fil[drive].cltbl = NULL;
+        sdc_unlock(); return -1;
+      }
+      lktbl[drive] = larger;
+      fil[drive].cltbl = larger;
 
       // and retry link table creation
       if(f_lseek(&fil[drive], CREATE_LINKMAP)) {
 	printf("Link table creation finally failed, "
 	       "required size: %d\r\n", lktbl[drive][0]);
+	f_close(&fil[drive]);
 	free(lktbl[drive]);
 	lktbl[drive] = NULL;
 	fil[drive].cltbl = NULL;
@@ -551,7 +535,7 @@ int sdc_image_open(int drive, char *name) {
   sdc_unlock();
 
   // remember current image name
-  image_name[drive] = strdup(name);
+  sdc_set_default(drive, fname);
 
   // image has successfully been opened, so report image size to core
   sdc_image_inserted(drive, fil[drive].obj.objsize);
@@ -559,57 +543,63 @@ int sdc_image_open(int drive, char *name) {
   return 0;
 }
 
-sdc_dir_t *sdc_readdir(int drive, char *name, const char *ext) {
-  static sdc_dir_t sdc_dir = { 0, NULL };
+static int sdc_dir_compare(const void *p1, const void *p2) {
+  sdc_dir_entry_t *d1 = (sdc_dir_entry_t *)p1;
+  sdc_dir_entry_t *d2 = (sdc_dir_entry_t *)p2;
 
-  int dir_compare(const void *p1, const void *p2) {
-    sdc_dir_entry_t *d1 = (sdc_dir_entry_t *)p1;
-    sdc_dir_entry_t *d2 = (sdc_dir_entry_t *)p2;
+  // comparing directory with regular file?
+  if(d1->is_dir != d2->is_dir)
+    return d2->is_dir - d1->is_dir;
 
-    // comparing directory with regular file?
-    if(d1->is_dir != d2->is_dir)
-      return d2->is_dir - d1->is_dir;
+  return strcasecmp(d1->name, d2->name);
+}
 
-    return strcasecmp(d1->name, d2->name);    
+static void sdc_dir_append(sdc_dir_t *dir, FILINFO *fno) {
+  if(!(dir->len%8)) {
+    // allocate room for 8 more entries
+    sdc_dir_entry_t *more = reallocarray(dir->files, dir->len + 8, sizeof(sdc_dir_entry_t));
+    if(!more) return;
+    dir->files = more;
   }
+  char *name = strdup(fno->fname);
+  if(!name) return;
+  dir->files[dir->len].name = name;
+  dir->files[dir->len].len = fno->fsize;
+  dir->files[dir->len].is_dir = (fno->fattrib & AM_DIR)?1:0;
+  dir->len++;
+}
 
-  void append(sdc_dir_t *dir, FILINFO *fno) {
-    if(!(dir->len%8))
-      // allocate room for 8 more entries
-      dir->files = reallocarray(dir->files, dir->len + 8, sizeof(sdc_dir_entry_t));
-      
-    dir->files[dir->len].name = strdup(fno->fname);
-    dir->files[dir->len].len = fno->fsize;
-    dir->files[dir->len].is_dir = (fno->fattrib & AM_DIR)?1:0;
-    dir->len++;
-  }
-  
-  // check if a file name matches any of the extensions given
-  char ext_match(char *name, const char *exts) {
-    // check if name has an extension at all
-    char *dot = strrchr(name, '.');
-    if(!dot) return 0;
+// check if a file name matches any of the extensions given
+static char sdc_ext_match(char *name, const char *exts) {
+  // check if name has an extension at all
+  char *dot = strrchr(name, '.');
+  if(!dot) return 0;
 
-    // iterate over all extensions
-    const char *ext = exts;
-    while(1) {
-      const char *p = ext;
-      while(*p && *p != '+' && *p != ';') p++;  // search of end of ext
-      int len = p-ext;
+  // iterate over all extensions
+  const char *ext = exts;
+  while(1) {
+    const char *p = ext;
+    while(*p && *p != '+' && *p != ';') p++;  // search of end of ext
+    int len = p-ext;
 
-      // check if length would match
-      if(strlen(dot+1) == len)
+    // check if length would match
+    if(strlen(dot+1) == len)
 	if(!strncasecmp(dot+1, ext, len))
 	  return 1;  // it's a match
-      
-      // end of extension string reached: nothing found
-      if(!*p) return 0;
-      
-      ext = p+1;
-    }
-    return 0;
+
+    // end of extension string reached: nothing found
+    if(!*p || *p == ';') return 0;
+
+    ext = p+1;
   }
-  
+  return 0;
+}
+
+
+sdc_dir_t *sdc_readdir(int drive, char *name, const char *ext) {
+  static sdc_dir_t sdc_dir = { 0, NULL };
+  if(drive < 0 || drive > MAX_DRIVES) return &sdc_dir;
+
   DIR dir;
   FILINFO fno;
 
@@ -627,7 +617,10 @@ sdc_dir_t *sdc_readdir(int drive, char *name, const char *ext) {
     } else {
       // no real need to free here, the unused parts will be free'd
       // once the cwd length increases. The menu relies on this!!!!!
-      strrchr(cwd[drive], '/')[0] = 0;
+      if(strcmp(cwd[drive], CARD_MOUNTPOINT) && strcmp(cwd[drive], ultima_root())) {
+        char *slash = strrchr(cwd[drive], '/');
+        if(slash) *slash = 0;
+      }
     }
   }
   
@@ -642,16 +635,16 @@ sdc_dir_t *sdc_readdir(int drive, char *name, const char *ext) {
   }
 
   // add "<UP>" entry for anything but the core's root
-  if(strcmp(cwd[drive], ultima_root()) != 0) {
+  if(strcmp(cwd[drive], ultima_root()) != 0 && strcmp(cwd[drive], CARD_MOUNTPOINT) != 0) {
     strcpy(fno.fname, "..");
     fno.fattrib = AM_DIR;
-    append(&sdc_dir, &fno);
+    sdc_dir_append(&sdc_dir, &fno);
   } else {
     // the root also gets a special entry for "eject" or No Disk
     // It's identified by the leading /, so the name can be changed
     strcpy(fno.fname, "/No Disk");
     fno.fattrib = AM_DIR;
-    append(&sdc_dir, &fno);    
+    sdc_dir_append(&sdc_dir, &fno);
   }
 
   printf("max name len = %d\r\n", FF_LFN_BUF);
@@ -661,20 +654,20 @@ sdc_dir_t *sdc_readdir(int drive, char *name, const char *ext) {
   int ret = f_opendir(&dir, cwd[drive]);
   printf("opendir(%s)=%d\r\n", cwd[drive], ret);
   
-  do {
-    f_readdir(&dir, &fno);
+  if(ret == FR_OK) do {
+    if(f_readdir(&dir, &fno) != FR_OK) break;
     if(fno.fname[0] != 0 && !(fno.fattrib & (AM_HID|AM_SYS)) ) {
       // printf("%s %s, len=%d\r\n", (fno.fattrib & AM_DIR) ? "dir: ":"file:", fno.fname, fno.fsize);
 
       // only accept directories or .ST/.HD files
-      if((fno.fattrib & AM_DIR) || ext_match(fno.fname, ext)) 
-	append(&sdc_dir, &fno);
+      if((fno.fattrib & AM_DIR) || sdc_ext_match(fno.fname, ext))
+	sdc_dir_append(&sdc_dir, &fno);
     }
   } while(fno.fname[0] != 0);
 
-  f_closedir(&dir);
+  if(ret == FR_OK) f_closedir(&dir);
 
-  qsort(sdc_dir.files, sdc_dir.len, sizeof(sdc_dir_entry_t), dir_compare);
+  if(sdc_dir.len > 1) qsort(sdc_dir.files, sdc_dir.len, sizeof(sdc_dir_entry_t), sdc_dir_compare);
   sdc_unlock();
 
   return &sdc_dir;

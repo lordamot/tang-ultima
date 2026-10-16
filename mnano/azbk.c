@@ -18,6 +18,8 @@
 #include "azbk.h"
 #include "sysctrl.h"
 #include "sdc.h"
+#include "companion.h"
+#include "ultima.h"
 
 // ---- the units -------------------------------------------------------
 typedef struct {
@@ -40,14 +42,7 @@ static unsigned short buf[256];  // one block's worth of words for the transfers
 // is left as it is - prefixing it too made the first board's unit 0
 // "/sd/bk/sd/dave.img" (22 Sep 2026)
 static void az_path(char *out, int len, const char *in) {
-  if(!strncasecmp(in, CARD_MOUNTPOINT "/", strlen(CARD_MOUNTPOINT) + 1)) {
-    snprintf(out, len, "%s", in);
-    return;
-  }
-  if(in[0] && in[1] == ':') in += 2;
-  while(*in == '/' || *in == '\\') in++;
-  snprintf(out, len, "%s/%s", AZ_ROOT, in);
-  for(char *p = out; *p; p++) if(*p == '\\') *p = '/';
+  if(companion_path(out, len, ultima_root(), in)) out[0] = 0;
 }
 
 static unsigned long file_blocks(const char *path) {
@@ -96,11 +91,12 @@ static void az_push_sizes(void) {
 
 int az_set_unit(int unit, const char *path) {
   if(unit < 0 || unit >= AZ_UNITS) return -1;
+  char full[AZ_PATH_MAX];
+  if(path && path[0] && companion_path(full, sizeof(full), ultima_root(), path)) return -1;
   if(cur_unit == unit) unit_close();
   if(path && path[0]) {
-    strncpy(units[unit].path, path, AZ_PATH_MAX - 1);
-    units[unit].path[AZ_PATH_MAX - 1] = 0;
-    units[unit].blocks = file_blocks(path);
+    strcpy(units[unit].path, full);
+    units[unit].blocks = file_blocks(full);
     units[unit].ro = 0;
   } else {
     units[unit].path[0] = 0;
@@ -406,8 +402,8 @@ static void az_read_ini(spi_t *spi, int load_roms) {
   char section = 0;
   for(int i = 0; i < AZ_UNITS; i++) { units[i].path[0] = 0; units[i].blocks = 0; }
   memset(&binfo, 0, sizeof(binfo));
-  if(f_open(&fil, AZ_INI, FA_OPEN_EXISTING | FA_READ) != FR_OK) {
-    printf("AZ: no %s - the machine has no ROMs to run\r\n", AZ_INI);
+  if(f_open(&fil, companion_resource("az_ini"), FA_OPEN_EXISTING | FA_READ) != FR_OK) {
+    printf("AZ: no %s - the machine has no ROMs to run\r\n", companion_resource("az_ini"));
     return;
   }
   binfo.ini = 1;
@@ -444,7 +440,7 @@ static void az_read_ini(spi_t *spi, int load_roms) {
 void az_boot(spi_t *spi) {
   az_spi = spi;
   sdc_lock();
-  f_mkdir(AZ_ROOT);
+  f_mkdir(ultima_root());
   az_read_ini(spi, 1);
   sdc_unlock();
 }
@@ -558,7 +554,7 @@ void az_handle_event(void) {
     FIL fil; UINT rd = 0;
     memset(buf, 0, 512);
     buf[0] = 1;
-    if(f_open(&fil, AZ_EEPROM, FA_OPEN_EXISTING | FA_READ) == FR_OK) {
+    if(f_open(&fil, companion_resource("az_eeprom"), FA_OPEN_EXISTING | FA_READ) == FR_OK) {
       if(f_read(&fil, &buf[1], 510, &rd) == FR_OK && rd == 510) buf[0] = 0;
       f_close(&fil);
     }
@@ -568,7 +564,7 @@ void az_handle_event(void) {
   case 024: {                      // CMOS out to the EEPROM file: 255 words
     FIL fil; UINT wr = 0;
     az_bread(AZ_R_CMOS, buf, 256);
-    if(f_open(&fil, AZ_EEPROM, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK) {
+    if(f_open(&fil, companion_resource("az_eeprom"), FA_CREATE_ALWAYS | FA_WRITE) == FR_OK) {
       f_write(&fil, buf, 510, &wr);
       f_close(&fil);
       if(wr != 510) err = 1;

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "siblings": {
+    "tang-uknc": {
+      "Makefile": "3c4bd9155d687495dfc0dd31bd965b989ed3e3d9ec7d6ef73826c3877b90c76d",
+      "mnano/Makefile": "c082b8ab71df1b17b63e3f6e8f68cdd23ebc1c0951af1536333246e94c373bb1",
+      "mnano/CMakeLists.txt": "b64957f9fbc1b0d6bb7561fb6a66d18da4240369fe606b25dcff371736297ac5",
+      "mnano/run_make": "53aa811cacea39e8fcdec821ff8212ef9c26d1e1ba3639c312604538db1ae7c3",
+      "mnano/flash_prog_cfg.ini": "7258928d5fe11ed7fca75ddeff90268efad78a2edac7fdcf4d49976916830441",
+      "mnano/misterynano_fw_bl616_cfg.ini": "4865b7d772072a31f07a5028fdeae3eae707f197c79802fbe46518223e073147"
+    },
+    "tang-pk8000": {
+      "Makefile": "20bf53340afc591c051a5ab1369415d8c0907568179c2af25beb64efcffcb472",
+      "mnano/Makefile": "c082b8ab71df1b17b63e3f6e8f68cdd23ebc1c0951af1536333246e94c373bb1",
+      "mnano/CMakeLists.txt": "b64957f9fbc1b0d6bb7561fb6a66d18da4240369fe606b25dcff371736297ac5",
+      "mnano/run_make": "53aa811cacea39e8fcdec821ff8212ef9c26d1e1ba3639c312604538db1ae7c3",
+      "mnano/flash_prog_cfg.ini": "7258928d5fe11ed7fca75ddeff90268efad78a2edac7fdcf4d49976916830441",
+      "mnano/misterynano_fw_bl616_cfg.ini": "4865b7d772072a31f07a5028fdeae3eae707f197c79802fbe46518223e073147"
+    },
+    "tang-korvet": {
+      "Makefile": "793a9465c64fca0abba5adc47e0890c21014a8f7c3e78707ab00faedbd54197d",
+      "mnano/Makefile": "c082b8ab71df1b17b63e3f6e8f68cdd23ebc1c0951af1536333246e94c373bb1",
+      "mnano/CMakeLists.txt": "b64957f9fbc1b0d6bb7561fb6a66d18da4240369fe606b25dcff371736297ac5",
+      "mnano/run_make": "53aa811cacea39e8fcdec821ff8212ef9c26d1e1ba3639c312604538db1ae7c3",
+      "mnano/flash_prog_cfg.ini": "7258928d5fe11ed7fca75ddeff90268efad78a2edac7fdcf4d49976916830441",
+      "mnano/misterynano_fw_bl616_cfg.ini": "4865b7d772072a31f07a5028fdeae3eae707f197c79802fbe46518223e073147"
+    },
+    "tang-zs256": {
+      "Makefile": "11dc1f18f3e9a6bd02e22ce1a0fa84c7f5d79c8aa4985a91c5efd5eaa43b13d4",
+      "mnano/Makefile": "c082b8ab71df1b17b63e3f6e8f68cdd23ebc1c0951af1536333246e94c373bb1",
+      "mnano/CMakeLists.txt": "b64957f9fbc1b0d6bb7561fb6a66d18da4240369fe606b25dcff371736297ac5",
+      "mnano/run_make": "53aa811cacea39e8fcdec821ff8212ef9c26d1e1ba3639c312604538db1ae7c3",
+      "mnano/flash_prog_cfg.ini": "7258928d5fe11ed7fca75ddeff90268efad78a2edac7fdcf4d49976916830441",
+      "mnano/misterynano_fw_bl616_cfg.ini": "4865b7d772072a31f07a5028fdeae3eae707f197c79802fbe46518223e073147"
+    },
+    "tang-bk-epta": {
+      "Makefile": "a559d18a654080e0d125adc84afe5b3a65721eab0d57c26d638ed4c89498763d",
+      "mnano/Makefile": "c082b8ab71df1b17b63e3f6e8f68cdd23ebc1c0951af1536333246e94c373bb1",
+      "mnano/CMakeLists.txt": "b64957f9fbc1b0d6bb7561fb6a66d18da4240369fe606b25dcff371736297ac5",
+      "mnano/run_make": "53aa811cacea39e8fcdec821ff8212ef9c26d1e1ba3639c312604538db1ae7c3",
+      "mnano/flash_prog_cfg.ini": "7258928d5fe11ed7fca75ddeff90268efad78a2edac7fdcf4d49976916830441",
+      "mnano/misterynano_fw_bl616_cfg.ini": "4865b7d772072a31f07a5028fdeae3eae707f197c79802fbe46518223e073147"
+    }
+  }
+}

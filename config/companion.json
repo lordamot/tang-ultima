@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "cores": [
+    {
+      "id": 5,
+      "name": "UKNC",
+      "dir": "uknc",
+      "settings": "uknc.ini",
+      "bitstream": "cores/uknc.bin",
+      "profile": "cores/uknc.json"
+    },
+    {
+      "id": 7,
+      "name": "PK8000",
+      "dir": "pk8000",
+      "settings": "pk8000.ini",
+      "bitstream": "cores/pk8000.bin",
+      "profile": "cores/pk8000.json"
+    },
+    {
+      "id": 8,
+      "name": "Korvet",
+      "dir": "korvet",
+      "settings": "korvet.ini",
+      "bitstream": "cores/korvet.bin",
+      "profile": "cores/korvet.json"
+    },
+    {
+      "id": 9,
+      "name": "ZS-256",
+      "dir": "zs256",
+      "settings": "zs256.ini",
+      "bitstream": "cores/zs256.bin",
+      "profile": "cores/zs256.json"
+    },
+    {
+      "id": 10,
+      "name": "BK-0011M",
+      "dir": "bk",
+      "settings": "bk.ini",
+      "bitstream": "cores/bk.bin",
+      "profile": "cores/bk.json"
+    }
+  ]
+}

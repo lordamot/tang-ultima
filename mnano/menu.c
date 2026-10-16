@@ -14,6 +14,7 @@
 #include "romload.h"
 #include "azbk.h"
 #include "ultima.h"
+#include "companion.h"
 #include "coreload.h"
 #include "menu.h"
 #include "sysctrl.h"
@@ -81,538 +82,11 @@ menu_variable_t variables_agat9[] = {
   { 'P', { 0 }},    // default no floppy write protected
   { '\0',{ 0 }}
 };
-// ------------------------------------------------------------------
-// ---------------------  Tang Ultima: the Core form -----------------
-// ------------------------------------------------------------------
-// One form on every core's main menu, the same text on all five: a 'C'
-// entry a machine, its option field the core id (sysctrl.h).  Selecting
-// the one that is running does nothing; any other is sent from the card
-// to the board's own BL616, which loads it into the FPGA's SRAM, and the
-// MCU restarts on the new machine (ultima.c).  The running one is drawn
-// with a mark.  The last entry, id 0, writes the running machine into
-// the FPGA's flash - what power-up loads.  The title's parent is form 0
-// on every core and the entry number is found by form number, as
-// everywhere here.
-static const char core_form_ultima[] =
-  "Core,0|1;"
-  // --------
-  "C,UKNC,5;"                           // МС0511 УКНЦ
-  "C,PK8000,7;"                         // ПК8000 Сура
-  "C,Korvet,8;"                         // ПК8020 Корвет
-  "C,ZS-256,9;"                         // Scorpion ZS-256 Turbo+
-  "C,BK-0011M,10;"                      // БК-0011М with an AZBK controller (BK Nano)
-  "C,Save to flash,0;";                 // the running one -> flash address 0
+// All five machine menus, defaults, About text and keyboard mappings live
+// in config/cores/*.json. The common firmware implements their protocols.
+static char sav_status[24];
+const char *core_form_ultima_text(void) { return companion_core_form(); }
 
-// the form's text, for the host test to know it is on every core
-const char *core_form_ultima_text(void) { return core_form_ultima; }
-
-// ------------------------------------------------------------------
-// ---------------------  UKNC menu -----------------------------
-// ------------------------------------------------------------------
-// Restructured in Sep 2026 (v2.0.0): the main form is the disks, the
-// reset, one "Hardware" form for everything the machine is made of, an
-// "About" text and "Save settings".  Every hardware switch is a letter
-// sysctrl.v decodes; a device that is off is not on the PPU bus at all.
-//
-// A form's title is "name,parent|entry": the parent form and the entry
-// in it to return to.  The entry number is only a fallback now -
-// menu_parent_entry() finds the 'S' entry that opened the form by its
-// form number, so a form can move in its parent without renumbering
-// (which is what used to go wrong here).
-//
-// The main form is built at run time: "HDD0:" is only there while the
-// HDD controller is on.
-
-#define UKNC_FORM_MAIN     0
-#define UKNC_FORM_HARDWARE 1
-#define UKNC_FORM_ABERRANT 2
-#define UKNC_FORM_FDD      3
-#define UKNC_FORM_HDD      4
-#define UKNC_FORM_RTC      5
-#define UKNC_FORM_MISC     6
-#define UKNC_FORM_CORE     7   // core_form_ultima, below
-
-static char main_form_uknc[192];        // menu_uknc_main() writes it
-static char sav_status[24];             // what "Run SAV:" shows instead of its label (menu_run_sav)
-
-static const char hardware_form_uknc[] =
-  "Hardware,0|5;"                       // return to the main form
-  // --------
-  "L,Volume:,Mute|33%|66%|100%,A;"
-  "L,Beeper:,Mute|On,b;"                // a standard part: stays on the bus, leaves the mixer
-  "S,Aberrant,2;"
-  "L,Covox:,Off|Port 177372|Port 177100 LPT|Both,c;"   // bit 0 the Aberrant's DAC, bit 1 the printer port
-  "S,FDD controller,3;"
-  "S,HDD controller,4;"
-  "L,Mouse:,Off|On,u;"                  // the Kakave+ mouse word 0177400
-  "S,RTC clock,5;"
-  "S,Misc,6;";
-
-static const char aberrant_form_uknc[] =
-  "Aberrant,1|3;"                       // return to Hardware
-  // --------
-  "L,AY1:,Off|On,1;"                    // 0177360
-  "L,AY2:,Off|On,2;"                    // 0177362
-  "L,AY3:,Off|On,3;"                    // 0177364
-  "L,Stereo:,Mono|ABC,o;"               // the module's own panning: A left, C right, B both (mixer.v)
-  "L,Low-pass:,Off|On,l;"               // 4.87 kHz on the whole mix (mixer.v): the real machine's playback path
-  "L,Old freaks:,Off|On,g;";            // for old monitor speakers: bass shelf, +6 dB, soft limiter (mixer.v)
-
-static const char fdd_form_uknc[] =
-  "FDD controller,1|5;"
-  // --------
-  "L,FDD controller:,Off|On,f;"         // 0177130/0177132
-  "F,FDD0:,0|dsk;"
-  "L,FDD0 write prot.:,Off|On,p;"
-  "F,FDD1:,1|dsk;"
-  "L,FDD1 write prot.:,Off|On,q;"
-  "F,FDD2:,2|dsk;"
-  "L,FDD2 write prot.:,Off|On,r;"
-  "F,FDD3:,3|dsk;"
-  "L,FDD3 write prot.:,Off|On,s;";
-
-static const char hdd_form_uknc[] =
-  "HDD controller,1|6;"
-  // --------
-  "L,HDD controller:,Off|On,e;"         // the IDE cartridge; off also hides HDD0: on the main form
-  "F,HDD0:,4|img;"                      // the cartridge's disk, SD slot 4
-  "L,HDD write prot.:,Off|On,K;"
-  "L,Image format:,Auto|Plain|Inversed,J;"   // how the image's bytes are read (see sdc.c); "HDD image format" does not fit beside "Inversed"
-  "L,HDD delay:,0|25|50|75|100|125|150|175|200|225|250|275|300|325|350|375|400|425|450|475|500|525|550|575|600|625|650|675|700|725|750|775|800|825|850|875|900|925|950|975,D;";  // ~us added per sector, spread over its reads; sets a streamed demo's sample rate
-
-// The Kakave+ real-time clock (kakave.v) has no battery behind it, so this
-// is where its time comes from at power-up: every variable is sent to the
-// core at start (below, "send initial values"), so the saved values land
-// in the clock then, and changing one here sets that field at once -
-// minutes also restart the seconds.  The letters are sysctrl.v's:
-// 'y' year-2020, 'm' month-1, 'd' date-1, 'h' hours, 'n' minutes.  The
-// machine can set the same clock itself through the cartridge's own
-// protocol (RT-11's KKVRTC); the last line reads the clock back from the
-// core (sysctrl CMD 6) once a second, so that shows too.
-static const char rtc_form_uknc[] =
-  "RTC clock,1|8;"
-  // --------
-  "L,RTC controller:,Off|On,t;"         // the clock word 0177410; the clock counts either way
-  "L,Year:,2020|2021|2022|2023|2024|2025|2026|2027|2028|2029|2030|2031|2032|2033|2034|2035|2036|2037|2038|2039,y;"
-  "L,Month:,1|2|3|4|5|6|7|8|9|10|11|12,m;"
-  "L,Day:,1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31,d;"
-  "L,Hour:,0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23,h;"
-  "L,Minute:,0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50|51|52|53|54|55|56|57|58|59,n;"
-  "I,rtc,;";                            // "2026-02-23 14:00:01 Thu", not selectable
-
-static const char misc_form_uknc[] =
-  "Misc,1|9;"
-  // --------
-  "L,Color:,RGB|BGR,V;"                 // swaps the red and blue planes (top.v)
-  "B,Cold Boot,B;";                     // system reset with memory reset
-
-static const char *forms_uknc[] = {
-  main_form_uknc,
-  hardware_form_uknc,
-  aberrant_form_uknc,
-  fdd_form_uknc,
-  hdd_form_uknc,
-  rtc_form_uknc,
-  misc_form_uknc,
-  core_form_ultima
-};
-
-// the "About" text, one paragraph a string, wrapped to the OSD's width
-// when it is opened (menu_text_open); "" is an empty line
-static const char *about_uknc[] = {
-  "UKNC Nano author: Alex Gurov",
-  "",
-  "v2.x update authors: Sergei Lemeshev, ClaudeCode",
-  "",
-  "Greets and big thanks to:",
-  "",
-  "nzeemin - specially for his great UKNCBTL emulator and programs",
-  "blairecas - specially for his programs and BadApple demo for UKNC",
-  "reddie - heavy support with everything - programming, testing help, and lots of ideas and advices during this so-called-development",
-  "xrust - specially for great efforts on creating and redesigining peripherals",
-  "",
-  "And all our community who made it real, after all",
-  NULL
-};
-
-// variable ids must match the ones in the menu string, and sysctrl.v's
-menu_variable_t variables_uknc[] = {
-  { 'A', { 1 }},    // Volume 33%
-  { 'b', { 1 }},    // Beeper on
-  { '1', { 1 }},    // AY1 on
-  { '2', { 1 }},    // AY2 on
-  { '3', { 1 }},    // AY3 on
-  { 'c', { 0 }},    // Covox off
-  { 'o', { 1 }},    // Stereo ABC, as the real module is wired
-  { 'l', { 1 }},    // Low-pass on
-  { 'g', { 0 }},    // Old freaks off
-  { 'f', { 1 }},    // FDD controller on
-  { 'p', { 0 }},    // FDD0..3 not write protected
-  { 'q', { 0 }},
-  { 'r', { 0 }},
-  { 's', { 0 }},
-  { 'e', { 0 }},    // HDD controller off
-  { 'K', { 0 }},    // HDD writable
-  { 'J', { 0 }},    // HDD image form auto-detected from sector 0
-  { 'D', { 30 }},   // HDD delay 750 us a sector: badapple's Covox right on the board (index x 25 us)
-  { 'u', { 0 }},    // Mouse off
-  { 't', { 0 }},    // RTC controller off
-  { 'y', { 6 }},    // the clock, until it is set or saved: 2026-01-01 00:00 (year index 6 = 2026)
-  { 'm', { 0 }},
-  { 'd', { 0 }},
-  { 'h', { 0 }},
-  { 'n', { 0 }},
-  { 'V', { 0 }},    // Color RGB
-  { '\0',{ 0 }}
-};
-
-// ------------------------------------------------------------------
-// ---------------------  PK8000 menu ----------------------------
-// ------------------------------------------------------------------
-// The main form is the four image slots, the reset, one "Hardware" form
-// for the ROM disk slot and the switches, an "About" text and "Save
-// settings".  Every switch is a letter sysctrl.v decodes; the image
-// slots are sd_card.v's (sdc.c drivename()).
-//
-// A form's title is "name,parent|entry": the parent form and the entry
-// in it to return to.  The entry number is only a fallback -
-// menu_parent_entry() finds the 'S' entry that opened the form by its
-// form number, so a form can move in its parent without renumbering.
-
-static const char main_form_pk8000[] =
-  "PK8000 Nano,;"                       // main form has no parent
-  // --------
-  "F,Tape:,0|cas;"                      // slot 0: the tape recorder
-  "F,Floppy A:,1|fdd;"                  // slot 1: floppy A
-  "F,Floppy B:,2|fdd;"                  // slot 2: floppy B
-  "F,Hard disk:,3|img+hdd;"             // slot 3: the IDE hard disk
-  "F,Run .bas:,5|bas;"                  // not a slot: the text is tokenised and put into RAM (bas.c)
-  "B,Reset,R;"                          // system reset
-  "S,Hardware,1;"                       // Hardware submenu is form 1
-  "S,Core,2;"                           // core_form_ultima: switch the machine
-  "T,About,;"                           // the about_pk8000 text
-  "T,Debug,;"                           // the debug window (menu_debug_open)
-  "B,Save settings,S;";
-
-// 14 entries: the form scrolls (menu_entry_go keeps four rows in view).
-// The three expansion devices each have a switch; when more than one is
-// on the first of them, in this order, owns expansion page 1 (top.v).
-static const char hardware_form_pk8000[] =
-  "Hardware,0|7;"                       // return to the main form, entry 7
-  // --------
-  "L,Floppy:,Off|On,f;"                 // the НГМД controller with its ROM
-  "L,IDE:,Off|On,i;"                    // the IDE/CF adapter with its ROM
-  "L,ROM disk:,Off|On,r;"               // the ROM disk cartridge
-  "F,ROM file:,4|bin+rom;"              // slot 4: the ROM disk's image
-  "L,Tape:,Stop|Play,T;"                // the tape recorder's motor
-  "B,Rewind tape,e;"                    // a pulse: rewind to the start
-  "L,AY card:,Off|On,y;"                // the AY-3-8910 sound card
-  "L,Volume:,Mute|33%|66%|100%,A;"
-  "L,Beeper:,Mute|On,b;"
-  "L,CPU waits:,Off|On,w;"              // the wait states the video adds to the CPU
-  "L,Joysticks:,Normal|Swapped,j;"      // swap the two joystick ports
-  "L,Floppy A prot.:,Off|On,p;"         // write protection
-  "L,Floppy B prot.:,Off|On,q;"
-  "L,HDD prot.:,Off|On,K;";
-
-static const char *forms_pk8000[] = {
-  main_form_pk8000,
-  hardware_form_pk8000,
-  core_form_ultima
-};
-
-// the "About" text, one paragraph a string, wrapped to the OSD's width
-// when it is opened (menu_text_open); "" is an empty line
-static const char *about_pk8000[] = {
-  "PK8000 Nano - the Сура ПК8000 on a Tang Nano 20K",
-  "",
-  "Authors: Sergei Lemeshev, Claude Code",
-  "",
-  "Built on Alexey Gurov's UKNC Nano and on MiSTeryNano (Till Harbaum)",
-  "The КР580ВМ80А core is vm80a by 1801BM1 (Vslav), CC-BY 3.0",
-  "Hardware knowledge from Emu80 (Viktor Pykhonin) and MAME",
-  "WD1793 core by MikeJ and Sorgelig (MiSTer), CC-BY vm80a, Emu80/MAME for the hardware",
-  NULL
-};
-
-// variable ids must match the ones in the menu string, and sysctrl.v's
-// (buttons - 'R', 'e', 'S' - are not variables)
-menu_variable_t variables_pk8000[] = {
-  { 'A', { 1 }},    // Volume 33%
-  { 'b', { 1 }},    // Beeper on
-  { 'w', { 1 }},    // CPU waits on
-  { 'j', { 0 }},    // Joysticks normal
-  { 'f', { 0 }},    // Floppy controller out
-  { 'i', { 0 }},    // IDE adapter out
-  { 'r', { 0 }},    // ROM disk out
-  { 'T', { 1 }},    // Tape plays
-  { 'y', { 1 }},    // AY sound card on
-  { 'p', { 0 }},    // Floppy A writable
-  { 'q', { 0 }},    // Floppy B writable
-  { 'K', { 0 }},    // Hard disk writable
-  { '\0',{ 0 }}
-};
-// ------------------------------------------------------------------
-// ---------------------  Korvet menu ----------------------------
-// ------------------------------------------------------------------
-// The main form is the four floppy slots, the reset, one "Hardware"
-// form for the ROM slot and the switches, an "About" text, the "Debug"
-// window and "Save settings".  Every switch is a letter sysctrl.v
-// decodes; the image slots are sd_card.v's (sdc.c drivename()).
-//
-// A form's title is "name,parent|entry": the parent form and the entry
-// in it to return to.  The entry number is only a fallback -
-// menu_parent_entry() finds the 'S' entry that opened the form by its
-// form number, so a form can move in its parent without renumbering.
-
-#ifndef CORE_VERSION
-#define CORE_VERSION ""                 // ../VERSION, through CMakeLists.txt
-#endif
-
-static const char main_form_korvet[] =
-  "Korvet Nano,;"                       // main form has no parent
-  // --------
-  "F,Floppy A:,0|kdi;"                  // slots 0..3: the ВГ93's four drives
-  "F,Floppy B:,1|kdi;"
-  "F,Floppy C:,2|kdi;"
-  "F,Floppy D:,3|kdi;"
-  "B,Reset,R;"                          // system reset
-  "S,Hardware,1;"                       // Hardware submenu is form 1
-  "S,Core,2;"                           // core_form_ultima: switch the machine
-  "T,About,;"                           // the about_korvet text
-  "T,Debug,;"                           // the debug window (menu_debug_open)
-  "B,Save settings,S;";
-
-// 13 entries: the form scrolls (menu_entry_go keeps four rows in view).
-static const char hardware_form_korvet[] =
-  "Hardware,0|6;"                       // return to the main form, entry 6
-  // --------
-  "L,CPU:,VM80|Z80|Z80 5MHz,c;"         // the processor: ВМ80, or the Z80 accelerator
-  "F,OPTS ROM:,4|rom+bin;"              // slot 4: a ROM image instead of the built-in ОПТС 2.0
-  "L,Floppy:,Off|On,f;"                 // the ВГ93 controller
-  "L,ExtROM:,Off|On,x;"                 // the Korvet-EXTROM controller (extrom.c)
-  "L,AY module:,Off|On,y;"              // the AY-3-8910 on the side connector
-  "L,Mouse:,Off|On,M;"                  // the serial mouse on the RS-232 port
-  "L,Graphics RAM:,192K|48K,m;"         // four graphics pages or one
-  "L,Volume:,Mute|33%|66%|100%,A;"
-  "L,Beeper:,Mute|On,b;"
-  "L,Floppy A prot.:,Off|On,p;"         // write protection
-  "L,Floppy B prot.:,Off|On,q;"
-  "L,Floppy C prot.:,Off|On,k;"
-  "L,Floppy D prot.:,Off|On,l;";
-
-static const char *forms_korvet[] = {
-  main_form_korvet,
-  hardware_form_korvet,
-  core_form_ultima
-};
-
-// the "About" text, one paragraph a string, wrapped to the OSD's width
-// when it is opened (menu_text_open); "" is an empty line
-static const char *about_korvet[] = {
-  "Korvet Nano - the ПК8020 Корвет on a Tang Nano 20K",
-  "",
-  "Authors: Sergei Lemeshev, Claude Code",
-  "",
-  "Built on PK8000 Nano and UKNC Nano (Alexey Gurov) and on MiSTeryNano (Till Harbaum)",
-  "The КР580ВМ80А core is vm80a by 1801BM1 (Vslav), CC-BY 3.0; the Z80 is tv80 (Guy Hutchison, MIT)",
-  "The ExtROM is forth32's Korvet-EXTROM, its firmware reimplemented here",
-  "Hardware knowledge from the техописание, Emu80 (Viktor Pykhonin), MAME and the 2022 board's PLM projects",
-  "WD1793 and YM2149 cores by MikeJ and Sorgelig (MiSTer)",
-  NULL
-};
-
-// variable ids must match the ones in the menu string, and sysctrl.v's
-// (buttons - 'R', 'S' - are not variables)
-menu_variable_t variables_korvet[] = {
-  { 'A', { 1 }},    // Volume 33%
-  { 'b', { 1 }},    // Beeper on
-  { 'c', { 0 }},    // CPU: ВМ80
-  { 'f', { 1 }},    // Floppy controller in
-  { 'x', { 0 }},    // ExtROM off
-  { 'y', { 0 }},    // AY module off
-  { 'M', { 1 }},    // Mouse on
-  { 'm', { 0 }},    // Graphics RAM 192K
-  { 'p', { 0 }},    // Floppy A writable
-  { 'q', { 0 }},    // Floppy B writable
-  { 'k', { 0 }},    // Floppy C writable
-  { 'l', { 0 }},    // Floppy D writable
-  { '\0',{ 0 }}
-};
-
-// ------------------------------------------------------------------
-// ---------------------  ZS-256 menu ----------------------------
-// ------------------------------------------------------------------
-// The main form is the four floppy slots, the SMUC's disk, the reset,
-// the Magic button, one "Hardware" form for the ROM file and the
-// switches, an "About" text, the "Debug" window and "Save settings".
-// Every switch is a letter sysctrl.v decodes; the image slots are
-// sd_card.v's (sdc.c drivename()), but the ROM's slot is
-// SDC_SLOT_ROM, which is browsed here and loaded by romload.c.
-
-static const char main_form_zs256[] =
-  "ZS-256 Nano,;"                       // main form has no parent
-  // --------
-  "F,Floppy A:,0|trd;"                  // slots 0..3: the Beta Disk's four drives
-  "F,Floppy B:,1|trd;"
-  "F,Floppy C:,2|trd;"
-  "F,Floppy D:,3|trd;"
-  "F,HDD:,4|img+hdd;"                   // slot 4: the SMUC's disk
-  "B,Reset,R;"                          // system reset
-  "B,Magic (NMI),h;"                    // the Magic button
-  "S,Hardware,1;"                       // Hardware submenu is form 1
-  "S,Core,2;"                           // core_form_ultima: switch the machine
-  "T,About,;"                           // the about_zs256 text
-  "T,Debug,;"                           // the debug window (menu_debug_open)
-  "B,Save settings,S;";
-
-// 15 entries: the form scrolls (menu_entry_go keeps four rows in view).
-static const char hardware_form_zs256[] =
-  "Hardware,0|8;"                       // return to the main form, entry 8
-  // --------
-  "F,ROM:,5|rom;"                       // SDC_SLOT_ROM: the ROM image, sent by romload.c
-  "L,Turbo:,Ports|On|Off,T;"            // 7 MHz as IN 7FFD/1FFD say, always, never
-  "L,RAM:,256K|1024K,m;"                // 1FFD bits 7:6 extend the page (ZS-1024)
-  "L,Floppy:,Off|On,f;"                 // the Beta Disk
-  "L,SMUC:,Off|On,u;"                   // IDE, clock, NVRAM
-  "L,General Sound:,Off|On,g;"
-  "L,AY:,Off|On,y;"
-  "L,AY stereo:,ABC|ACB|Mono,s;"
-  "L,Joystick:,Off|Kempston,j;"
-  "L,Mouse:,Off|Kempston,M;"
-  "L,Volume:,Mute|33%|66%|100%,A;"
-  "L,Floppy A prot.:,Off|On,p;"         // write protection
-  "L,Floppy B prot.:,Off|On,q;"
-  "L,Floppy C prot.:,Off|On,k;"
-  "L,Floppy D prot.:,Off|On,l;";
-
-static const char *forms_zs256[] = {
-  main_form_zs256,
-  hardware_form_zs256,
-  core_form_ultima
-};
-
-// the "About" text, one paragraph a string, wrapped to the OSD's width
-// when it is opened (menu_text_open); "" is an empty line
-static const char *about_zs256[] = {
-  "ZS-256 Nano - the Scorpion ZS-256 Turbo+ on a Tang Nano 20K",
-  "",
-  "Authors: Sergei Lemeshev, Claude Code",
-  "",
-  "Built on Korvet Nano, PK8000 Nano and UKNC Nano (Alexey Gurov) and on MiSTeryNano (Till Harbaum)",
-  "The Z80 is tv80 (Guy Hutchison, MIT); WD1793 and YM2149 cores by MikeJ and Sorgelig (MiSTer)",
-  "The machine is Sergey Zonov's (Scorpion, St. Petersburg, 1996), from the schematic restored by romychs and the Black Edition board; ProfROM, SMUC and General Sound as Unreal Speccy has them",
-  "General Sound's firmware is Stinger's (X-Trade, 1997), gs105a",
-  NULL
-};
-
-// variable ids must match the ones in the menu string, and sysctrl.v's
-// (buttons - 'R', 'S', 'h' - are not variables; 'P' is sent by romload.c)
-menu_variable_t variables_zs256[] = {
-  { 'A', { 1 }},    // Volume 33%
-  { 'T', { 0 }},    // Turbo as the ports say
-  { 'm', { 0 }},    // RAM 256K
-  { 'f', { 1 }},    // Floppy on
-  { 'u', { 1 }},    // SMUC on
-  { 'g', { 1 }},    // General Sound on
-  { 'y', { 1 }},    // AY on
-  { 's', { 0 }},    // AY stereo ABC
-  { 'j', { 1 }},    // Kempston joystick on
-  { 'M', { 1 }},    // Kempston mouse on
-  { 'p', { 0 }},    // Floppy A writable
-  { 'q', { 0 }},    // Floppy B writable
-  { 'k', { 0 }},    // Floppy C writable
-  { 'l', { 0 }},    // Floppy D writable
-  { '\0',{ 0 }}
-};
-
-// ------------------------------------------------------------------
-// ---------------------  BK Nano menu ---------------------------
-// ------------------------------------------------------------------
-// The main form is four AZ units (the images the controller's AZ.INI
-// names, or the ones chosen here, which override them and are saved),
-// the reset, a "Hardware" form for the switches, the Core form, an
-// "About" text and "Save settings" (BK Nano 0.1.28 took its Debug page
-// out of the OSD; the core's dbg bus is still there).  Every switch
-// is a letter sysctrl.v decodes; the unit slots are sdc.c's image names,
-// mounted through azbk.c (az_set_unit, menu_bk_mount below) and never
-// through sd_card.v, whose image ports the BK's top.v ties off.
-
-static const char main_form_bk[] =
-  "BK Nano,;"                           // main form has no parent
-  // --------
-  "F,AZ0:,0|img+bkd+dsk;"               // units 0..3 of the AZ controller
-  "F,AZ1:,1|img+bkd+dsk;"
-  "F,AZ2:,2|img+bkd+dsk;"
-  "F,AZ3:,3|img+bkd+dsk;"
-  "B,Reset,R;"                          // the reset: every reset here is the AZ's cold one too
-  "S,Hardware,1;"                       // Hardware submenu is form 1
-  "S,Core,2;"                           // core_form_ultima: switch the machine
-  "T,About,;"                           // the about_bk text
-  "B,Save settings,S;";
-
-static const char hardware_form_bk[] =
-  "Hardware,0|6;"                       // return to the main form, entry 6
-  // --------
-  "L,CPU:,4 MHz|8 MHz,T;"               // the К1801ВМ1's clock
-  "L,Joystick:,Off|On,j;"               // on 177714
-  "L,Covox 177714:,Off|AZ setup,c;"     // the legacy Covox on the port the AY shares (azsound.v)
-  "L,Volume:,Mute|33%|66%|100%,A;";
-
-static const char *forms_bk[] = {
-  main_form_bk,
-  hardware_form_bk,
-  core_form_ultima
-};
-
-// the "About" text, one paragraph a string, wrapped to the OSD's width
-// when it is opened (menu_text_open); "" is an empty line
-static const char *about_bk[] = {
-  "BK Nano - a BK-0011M with an AZBK controller on a Tang Nano 20K",
-  "",
-  "Authors: Sergei Lemeshev, Claude Code.  MIT licence; the K1801VM1 model GPL v2",
-  "",
-  "K1801VM1 at 4 or 8 MHz, 128 KB, BASIC and BOS.  The AZBK: 32 MB mapper, 256-colour 1024x768 display with three layers, blitter, two AYs, Covox, sound DMA, disks from the SD card, EEPROM, clock - no network",
-  "Dangerous Dave in the Haunted Mansion (grf, 2025) runs; ANDOS, MKDOS and the BK monitor boot from the card",
-  "",
-  "F12 the menu, F11 reset, Alt+Win the BK screen as its mono or colour output, Alt+Left Ctrl the palettes back; the key map: keyboard-ru.pdf",
-  "",
-  "The AZBK is MAXIOL's (2021-2026), as documented at forum.maxiol.com and modelled by GID's BKemu; the card package is his.  K1801VM1: Vslav's model in Sorgelig's MiSTer core; YM2149: MikeJ, Sorgelig",
-  "Built on ZS-256, Korvet, PK8000 and UKNC Nano (Alexey Gurov) and MiSTeryNano (Till Harbaum)",
-  NULL
-};
-
-// variable ids must match the ones in the menu string, and sysctrl.v's
-// (buttons - 'R', 'S', 'B' - are not variables)
-menu_variable_t variables_bk[] = {
-  { 'A', { 1 }},    // Volume 33%
-  { 'T', { 0 }},    // CPU 4 MHz
-  { 'j', { 1 }},    // joystick on
-  { 'c', { 0 }},    // the legacy Covox off: 177714 drives the AY only
-  { '\0',{ 0 }}
-};
-
-// the value of a variable by id, or -1
-static int menu_var_value(menu_t *menu, char id) {
-  for(int i=0;menu->vars[i].id;i++)
-    if(menu->vars[i].id == id) return menu->vars[i].value;
-  return -1;
-}
-
-// (re)build the main form: HDD0: only while the HDD controller ('e') is on
-static void menu_uknc_main(menu_t *menu) {
-  snprintf(main_form_uknc, sizeof(main_form_uknc),
-	   "UKNC Nano,;"
-	   "F,FDD0:,0|dsk;"
-	   "%s"
-	   "F,Run SAV:,5|sav;"               // a .SAV on the card -> RT11SAV.DSK in FDD0 (menu_run_sav, slot SDC_SLOT_SAV)
-	   "B,Reset,R;"
-	   "S,Hardware,1;"
-	   "S,Core,7;"                        // core_form_ultima: switch the machine
-	   "T,About,;"
-	   "B,Save settings,S;",
-	   menu_var_value(menu, 'e') > 0 ? "F,HDD0:,4|img;" : "");
-}
 // ------------------------------------------------------------------
 // ---------------------  UNEON menu -----------------------------
 // ------------------------------------------------------------------
@@ -943,11 +417,10 @@ static const char *settings_file[] = {
 // uknc.ini, /sd/pk8000/pk8000.ini, /sd/korvet/korvet.ini, /sd/zs256/zs256.ini,
 // /sd/bk/bk.ini.
 static const char *settings_file_name(void) {
-  static char name[64];
+  static char name[COMPANION_PATH];
   const ultima_core_t *c = ultima_core(core_id);
   if(c) {
-    snprintf(name, sizeof(name), "%s/%s", ultima_root(), c->ini);
-    return name;
+    return companion_path(name, sizeof(name), ultima_root(), c->ini) ? NULL : name;
   }
   if(core_id == CORE_ID_VIC20) return CARD_MOUNTPOINT "/vic20.ini";
   if(core_id < sizeof(settings_file)/sizeof(settings_file[0]))
@@ -1001,6 +474,7 @@ static int menu_settings_load(menu_t *menu) {
 	    int drive = *p-'0';
 	    // skip after '='
 	    while(*p && *p != '=') p++;
+	    if(!*p) continue;
 	    p++;
 	    if(*p) {
 	      // skip to begin of filename
@@ -1026,6 +500,7 @@ static int menu_settings_load(menu_t *menu) {
 	    char id = *p++;
 	    // skip until '='
 	    while(*p && *p != '=') p++;
+	    if(!*p) continue;
 	    p++;  // skip =
 	    if(*p) {
 	      // skip all whites
@@ -1080,7 +555,7 @@ static void menu_settings_save(menu_t *menu) {
     // (romload.c); the UKNC's and PK8000's extra slot is not saved
     f_puts("\n; image files\n", &file);
 
-    int slots = (core_id == CORE_ID_ZS256) ? MAX_DRIVES + 1 : MAX_DRIVES;
+    int slots = companion_save_extra() ? MAX_DRIVES + 1 : MAX_DRIVES;
     for(int drive=0;drive<slots;drive++) {
       char *cwd = sdc_get_cwd(drive);
       char *image = sdc_get_image_name(drive);
@@ -1132,6 +607,7 @@ menu_t *menu_init(spi_t *spi)
 menu_t *menu_init(u8g2_t *u8g2)
 #endif
 {
+  companion_init();
   static menu_t menu;
   memset(&menu, 0, sizeof(menu));
 
@@ -1153,24 +629,13 @@ menu_t *menu_init(u8g2_t *u8g2)
   } else if(core_id == CORE_ID_AGAT9) {
     menu.vars = variables_agat9;
     menu.forms = forms_agat9;
-  } else if(core_id == CORE_ID_UKNC) {
-    menu.vars = variables_uknc;
-    menu.forms = forms_uknc;
-  } else if(core_id == CORE_ID_PK8000) {
-    menu.vars = variables_pk8000;
-    menu.forms = forms_pk8000;
-  } else if(core_id == CORE_ID_KORVET) {
-    menu.vars = variables_korvet;
-    menu.forms = forms_korvet;
-  } else if(core_id == CORE_ID_ZS256) {
-    menu.vars = variables_zs256;
-    menu.forms = forms_zs256;
-  } else if(core_id == CORE_ID_BK) {
-    menu.vars = variables_bk;
-    menu.forms = forms_bk;
+  } else if(ultima_core(core_id) && !companion_configure(&menu)) {
+    // The FPGA's ID selects an SD-card JSON profile, never a build variant.
   } else {
-    menu.vars = NULL;
-    menu.forms = NULL;
+    static menu_variable_t no_vars[] = {{0, {0}}};
+    static const char *no_forms[] = {"Unsupported core,;"};
+    menu.vars = no_vars;
+    menu.forms = no_forms;
   }
   
   menu_goto_form(&menu, 0, 1); // first form selected at start
@@ -1260,8 +725,8 @@ menu_t *menu_init(u8g2_t *u8g2)
   } else
     printf("SD wasn't ready, not loading settings\r\n");
 
-  // the UKNC's main form depends on a setting, so it is built now
-  if(core_id == CORE_ID_UKNC) menu_uknc_main(&menu);
+  // Apply conditional JSON entries and bound restored values to their lists.
+  companion_rebuild(&menu);
 
   // send initial values for all variables
   for(int i=0;menu.vars[i].id;i++)
@@ -1372,8 +837,8 @@ static void menu_variable_set(menu_t *menu, const char *s, int val) {
       // also set this in the core
       sys_set_val(menu->osd->spi, id, val);
 
-      // the UKNC's HDD controller switch adds or removes HDD0: on the main form
-      if(core_id == CORE_ID_UKNC && id == 'e') menu_uknc_main(menu);
+      // Rebuild conditional entries, including the UKNC HDD controller.
+      companion_rebuild(menu);
 
       if(core_id == CORE_ID_ATARI_ST) {      
 	// trigger cold reset if memory, chipset or TOS have been changed a
@@ -1384,19 +849,10 @@ static void menu_variable_set(menu_t *menu, const char *s, int val) {
 	  sys_set_val(menu->osd->spi, 'R', 0);
 	}
       }
-  if(core_id == CORE_ID_KORVET) {
-    // the processor and the graphics RAM's size take effect at a reset
-    if(id == 'c' || id == 'm') {
-      sys_set_val(menu->osd->spi, 'R', 1);
-      sys_set_val(menu->osd->spi, 'R', 0);
-    }
-  }
-  if(core_id == CORE_ID_ZS256) {
-    // the RAM's size takes effect at a reset
-    if(id == 'm') {
-      sys_set_val(menu->osd->spi, 'R', 1);
-      sys_set_val(menu->osd->spi, 'R', 0);
-    }
+  int reset = companion_reset_value(id);
+  if(ultima_core(core_id) && reset) {
+    sys_set_val(menu->osd->spi, 'R', reset);
+    sys_set_val(menu->osd->spi, 'R', 0);
   }
   if(core_id == CORE_ID_C64||core_id == CORE_ID_VIC20){
     // c64 core, trigger core reset if Video mode / PLL changes
@@ -1842,9 +1298,12 @@ static void menu_run_sav(menu_t *menu, int parent, const char *name) {
   if(rt11sav_make(sdc_get_cwd(SDC_SLOT_SAV), fname, menu_rt11_date(menu), err, sizeof(err)) < 0)
     snprintf(sav_status, sizeof(sav_status), "err: %s", err);
   else {
-    strcpy(sav_status, "done: " RT11SAV_DISK);
-    char disk[] = RT11SAV_DISK;
-    sdc_set_default(0, RT11SAV_DIR "/" RT11SAV_DISK);
+    snprintf(sav_status, sizeof(sav_status), "done: SAV disk");
+    const char *sav_path = companion_resource("sav_disk");
+    const char *sav_name = strrchr(sav_path, '/');
+    char disk[COMPANION_PATH];
+    snprintf(disk, sizeof(disk), "%s", sav_name ? sav_name+1 : sav_path);
+    sdc_set_default(0, companion_resource("sav_disk"));
     sdc_image_open(0, disk);
     // and boot it
     sys_set_val(menu->osd->spi, 'R', 1);
@@ -2180,11 +1639,7 @@ static void menu_select(menu_t *menu) {
     // (PK8000 Nano's third flash opened About for Debug with strcmp)
     const char *label = menu_get_str(menu, s, MENU_ENTRY_INDEX_LABEL);
     if(!strncmp(label, "Debug,", 6))      menu_debug_open(menu, label);
-    else if(core_id == CORE_ID_UKNC)      menu_text_open(menu, label, about_uknc);
-    else if(core_id == CORE_ID_PK8000)    menu_text_open(menu, label, about_pk8000);
-    else if(core_id == CORE_ID_KORVET)    menu_text_open(menu, label, about_korvet);
-    else if(core_id == CORE_ID_ZS256)     menu_text_open(menu, label, about_zs256);
-    else if(core_id == CORE_ID_BK)        menu_text_open(menu, label, about_bk);
+    else if(ultima_core(core_id)) menu_text_open(menu, label, companion_about());
   } break;
 
   case 'C': {

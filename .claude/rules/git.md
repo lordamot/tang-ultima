@@ -41,6 +41,11 @@ document the flash layout
   among them (each core's `impl/pnr/` is under `build/cores/<core>/`;
   the siblings keep their own on record, this repository does not)
 
+The shared-companion scripts (`embed_companion.py`, `test_companion.py`,
+`stage_card.py`, `audit_siblings.py`, `connect_siblings.py`) have explicit `.gitignore`
+exceptions, so normal `git add` includes them. Toolchain directories stay
+ignored. `config/` is source, including the sibling provenance snapshot.
+
 ## What *is* committed on purpose
 
 - **`bin/uknc.fs`, `bin/pk8000.fs`, `bin/korvet.fs`, `bin/zs256.fs`,

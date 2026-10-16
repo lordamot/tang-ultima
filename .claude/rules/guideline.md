@@ -71,17 +71,18 @@ before researching it yourself.
 ## Editing
 
 - The flash holds one bitstream at address 0 and the card holds all
-  five, so the names must agree in two places: the Makefile's `CORES`
-  and `DEFAULT_CORE`, and `mnano/ultima.c`'s `ultima_cores[]`, whose
-  `dir` field names both the card directory and `/cores/<dir>.bin`.
+  five. `config/companion.json` names their directories, bitstreams and
+  profiles; `config/cores/*.json` supplies menus, defaults and keymaps.
+  `mnano/companion_defaults.h` is generated from that JSON, never edited.
+  The Makefile's `CORES` still names the five compiled FPGA protocols.
 - Anything that writes flash address 0 is writing the only thing the board
   can boot.  Keep the refusals in `flash_install()` ahead of the erase,
   and keep `tools/mkimage.py` checking the same fields.
-- A change to a core's menu, keyboard or SD layout belongs to the core's
-  own repository first; this firmware carries a copy of each and the
-  five must be kept the same by hand (there is no mechanism), so say
-  so when one moves.  The BK's `azbk.c` and `bk.c` are the sibling's
-  files verbatim; the hooks are in `menu.c`, `sysctrl.c`, `usb_host.c`.
+- The unified companion's menu, keyboard and SD layout are JSON here.
+  Review sibling changes with `make siblings-check`; provenance is in
+  `config/siblings.lock.json`. The protocols still follow their sibling
+  implementations. `azbk.c` now uses configured paths and is no longer
+  verbatim; its protocol hooks remain in menu/sysctrl/usb_host.
 - The card and the flash share the m0s link, so nothing may ask the card
   for a sector while a page program is in flight: `ultima_switch()` closes
   every image first.  (`sys_irq_hold` is from the MultiBoot design, when

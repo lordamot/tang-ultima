@@ -190,7 +190,7 @@ int bas_run(spi_t *spi, const char *path) {
   spi_end(spi);
   printf("bas: %d lines, %u bytes at 4001h\r\n", lines, end - BAS_TXTTAB);
 
-  // r u n Enter: row*8 + col + 1 (pk8000.h)
+  // r u n Enter: row*8 + col + 1 (the PK8000 keyboard protocol)
   vTaskDelay(pdMS_TO_TICKS(50));
   bas_key(spi, 4*8 + 7 + 1);
   bas_key(spi, 5*8 + 2 + 1);

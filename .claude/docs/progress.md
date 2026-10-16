@@ -779,3 +779,92 @@ itself - the sibling's own log says its build is "not yet heard" either.
    (A1) or the controller ignores it (A2) is not measured.  Everything
    either side of the pulse - CMD 9, the magic byte, the counter, the
    flash contents, the three jump addresses, the walk - is verified.
+
+
+## 16 October 2026: one companion firmware, SD-card JSON profiles
+
+The dock firmware now loads a catalog from /sd/companion.json and an active
+profile by FPGA core ID. config/companion.json and config/cores/*.json are
+the source of menus, default SYS values, numeric keyboard tables, drive
+names, reset rules, and file/resource paths for all five machines. Recovery
+profiles are embedded from those same files by tools/embed_companion.py.
+Missing or invalid card configuration falls back to the generated defaults;
+invalid overrides are atomic and logged over UART. Protocol implementations
+remain shared C, including BK's algorithmic keyboard and the per-core loaders.
+
+Reviewed all five siblings; config/siblings.lock.json records their revisions
+and firmware-source hashes. UKNC is at 0efb2cc87f29 (2.0.0), with the current
+/uknc/uknc.ini layout. Its SAV base and output, ZS ROMs, Korvet ExtROM, BK's
+AZ.INI/EEPROM/units, saved disk paths, browser roots and switching bitstreams
+now use the configured paths. Relative images, existing /sd/... paths and
+AZBK's 0:/ and backslash paths are supported. Siblings were read, never edited.
+The shared firmware is built here; the siblings' standalone Makefiles still
+build their original firmware. Use this repository's bin/bl616.bin on all five.
+
+The SD layer also now closes file handles on eject, repairs the cluster-map
+pointer after realloc, bounds slots and paths, handles a missing browse
+directory, and keeps a legacy root-level browser from climbing above /sd.
+Directory helper functions have file scope, avoiding executable-stack
+trampolines in the host test.
+
+make card-stage collected 67 shipped files from the five siblings and bin/
+into build/card/, following JSON destinations. It stages the UKNC RT-11
+base/SAVs, PK8000 examples, Korvet ExtROM, ZS ROMs and the BK package;
+repeated staging preserves existing staged media unless --refresh is explicit.
+make card builds the FPGA cores first; card-stage uses existing bitstreams.
+Neither writes a mounted card. config/README.md documents the schema.
+
+Verified here:
+- make fw: builds; copied build/fw/bl616.bin to bin/bl616.bin (514800 bytes),
+  SHA256 973f6fad1b0817788baefd8aca98724e93baadbcbbbd2431f1a1da1bd6355a80.
+- make menu-test: all five machines, 49 screens and zero errors, once with
+  embedded defaults and once with SD-layout JSON. UKNC main screen inspected.
+- config-check: 52 checks passed, including actual card JSON edits without
+  recompiling, fallback, rejected documents preserving the active profile,
+  keyboard edits, relocated paths, duplicate keys and malformed menu links.
+- storage-test: production FatFs reader on a formatted RAM disk; relocated
+  SAV build, SD mount/eject and a fragmented image needing a larger map,
+  missing directory/root bounds, fallback, custom ZS ROM and Korvet ExtROM
+  paths, and BK legacy paths passed.
+- config-check and storage-test also passed with address/undefined-behavior
+  sanitizers. Leak detection disabled because LeakSanitizer cannot run under
+  this environment's ptrace; no leak-check claim.
+- siblings-check and git diff --check passed. No FPGA RTL changed, no core
+  rebuild/timing/lint was needed for the companion refactor.
+
+Not flashed, not run on a board. No claim about booting or switching under
+this new firmware. Existing board history above remains the board evidence.
+Nothing committed or pushed.
+
+
+## 16 October 2026: connect every sibling build to the shared companion
+
+Follow-up: "all siblings?". The earlier JSON refactor initially left the
+siblings' standalone build entry points unchanged. That integration is now
+complete in all five actual sibling repositories, with filesystem approval
+for their directories outside this session's writable workspace.
+
+Their top-level fw targets and direct mnano Make/CMake entry points now
+delegate to tang-ultima's shared implementation. run_make no longer uses
+/home/alex paths. Raw flash INIs select ../bin/bl616.bin; flash-mcu refuses
+stale build/shipped combinations. menu/config/storage checks delegate here.
+card and card-config stage the same JSON-defined layout beneath each
+sibling's build/card, preserving existing staged media. FPGA sources and
+bitstreams were not changed. Historical local companion C files remain
+for machine regression references and are not separate firmware builds.
+
+Prepared and reviewed build/sibling-integration.patch (55 files), built
+all three entry points in scratch copies, then applied with
+tools/connect_siblings.py --apply --verify. All five actual repositories
+passed top-level Make, direct mnano Make and CMake builds, JSON card/card-config
+staging, profile byte comparisons and flash dry runs. No hardware command
+was executed. Logs: build/sibling-integration/*actual*.log and
+build/sibling-integration/actual-results.txt.
+
+All six shipped bin/bl616.bin files are 514800 bytes and SHA256
+973f6fad1b0817788baefd8aca98724e93baadbcbbbd2431f1a1da1bd6355a80.
+config/sibling-builds.lock.json records the connected entry points.
+make siblings-check now checks those and all six shipped binaries, as well
+as the original firmware-source snapshots. All repositories pass diff --check.
+Each sibling has SHARED-COMPANION.md, README notes and a progress entry.
+No commits, pushes, flashing, board validation, FPGA builds, timing or lint.

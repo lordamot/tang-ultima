@@ -164,11 +164,22 @@ board).
 
 ## The SD card
 
+The dock now uses the same firmware binary for all five machines, with
+readable SD-card JSON for menus, defaults, keyboard maps and paths. See
+[config/README.md](config/README.md) for the schema and compatibility rules.
+`make card-stage` collects the JSON, existing bitstreams and required files
+from all five siblings into `build/card/`, ready to copy onto the card.
+Changes to card JSON apply on the next dock restart, without rebuilding.
+All five sibling `fw` targets, their direct `mnano` builds and their CMake
+entry points now use this shared implementation and the same shipped binary.
+
 Each machine has a directory of its own, holding what used to sit in
 the card's root:
 
 ```
 /ultima.ini          which machine the flash holds: core=uknc | pk8000 | korvet | zs256 | bk
+/companion.json      machine names, directories, settings and bitstream/profile paths
+/cores/*.json        each machine's menu, defaults, keyboard and resource names
 /cores/uknc.bin      the five bitstreams, which is what the OSD switches between
 /cores/pk8000.bin
 /cores/korvet.bin
@@ -197,6 +208,8 @@ make toolchain       the toolchain into tools/ (~8 GB, once)
 make cores           the five bitstreams -> bin/<core>.fs and bin/<core>.bin
 make card            what goes onto the card
 make fw              the dock's BL616 firmware -> build/fw/bl616.bin
+make config-check    validate the JSON and path behavior on the host
+make card-stage      collect all five siblings' assets -> build/card/
 make flash-image     openFPGALoader writes one core into the FPGA's flash (once)
 make flash-mcu       the BL616 over UART (COMX=/dev/ttyACM0)
 make onboard-fw      stage 2 for the board's own BL616 -> build/onboard/stage2.bin

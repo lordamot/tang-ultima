@@ -18,10 +18,8 @@
 #define ROM_MAX_ZS       (256*1024)
 #define ROM_MAX_GS       (32*1024)
 
-// the default file names, under the running core's directory on the card
-// (/sd/zs256 here - ultima_root(); ZS-256 Nano alone has them in the root)
-#define ROM_FILE_ZS      "zs256.rom"
-#define ROM_FILE_GS      "gs105a.rom"
+// File names are resources.rom and resources.gs_rom in the JSON profile,
+// relative to the machine's directory in companion.json.
 
 // send a file to the core; returns its size, 0 if it could not be read
 unsigned long rom_load(spi_t *spi, const char *path, unsigned long addr, unsigned long max);

@@ -14,8 +14,8 @@
 #ifndef EXTROM_H
 #define EXTROM_H
 
-// the card's folder the controller sees as its root
-#define EXTROM_ROOT   "/sd/korvet/extrom"   // under the Korvet's directory (ultima.h)
+// The card folder is the JSON profile's resources.extrom, under the
+// configured machine directory.
 
 #ifndef EXTROM_HOST_TEST
 #include "spi.h"

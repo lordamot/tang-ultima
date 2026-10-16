@@ -1,0 +1,9 @@
+all built - ready to commit?
+
+************************************************************************
+
+Yes—ready for one commit in each of the six repositories.
+
+Firmware builds and host checks passed; all six shipped binaries match. FPGA bitstreams are unchanged; board validation remains.
+
+Nothing is staged or committed. Exclude BK’s pre-existing untracked AGENTS.md.

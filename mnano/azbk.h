@@ -25,11 +25,8 @@
 
 #include "spi.h"
 
-#define AZ_ROOT          CARD_MOUNTPOINT "/bk"    // the AZ's card root
-#define AZ_INI           AZ_ROOT "/AZ.INI"
-#define AZ_EEPROM        AZ_ROOT "/eeprom.dat"
 #define AZ_UNITS         32
-#define AZ_PATH_MAX      160
+#define AZ_PATH_MAX      256
 
 // SPI target 4 (azctrl.v)
 #define SPI_TARGET_AZ    4

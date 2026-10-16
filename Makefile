@@ -20,9 +20,13 @@
 #   make toolchain     fetch the toolchain into tools/  (~8 GB, once)
 #   make cores         build all five -> bin/<core>.fs and bin/<core>.bin
 #   make core-uknc     one of them (also core-pk8000, core-korvet, core-zs256, core-bk)
-#   make card          say which files to copy onto the SD card
+#   make card          build cores and stage the JSON-defined card layout
 #   make fw            build the BL616 firmware -> build/fw/bl616.bin
 #   make menu-test     the OSD menu on the host, all five cores' forms as PNG
+#   make config-check JSON profiles, fallback and path validation on the host
+#   make storage-test production FatFs loaders and image handles on a RAM disk
+#   make card-stage   collect all five siblings' assets into build/card/
+#   make siblings-check check the reviewed companion source snapshots
 #   make lint          Verilator over each core, in its own tree
 #   make flash-image   openFPGALoader the default core into flash address 0
 #   make flash-core-uknc   any single core into address 0 (also -pk8000, -korvet, -zs256, -bk)
@@ -179,26 +183,13 @@ lint: $(foreach c,$(CORES),lint-$(c))
 # install, so these five files are what makes the switch work at all -
 # without them the Core form can only report that the file is missing.
 #-----------------------------------------------------------------------
-card: $(foreach c,$(CORES),bin/$(c).bin)
-	@echo
-	@echo "copy these into /cores/ on the SD card:"
-	@ls -l $(foreach c,$(CORES),bin/$(c).bin)
-	@echo
-	@echo "  SD:/cores/uknc.bin  SD:/cores/pk8000.bin  SD:/cores/korvet.bin  SD:/cores/zs256.bin  SD:/cores/bk.bin"
-	@echo
-	@echo "and SD:/ultima.ini records which one is in the flash (the OSD writes it)."
-	@echo
-	@echo "The ZS-256 has no ROM in its bitstream: SD:/zs256/zs256.rom (../tang-zs256/soft/rom/scorp294.rom,"
-	@echo "or a 256 KB ProfROM) and SD:/zs256/gs105a.rom, else it runs zeros (romload.c)."
-	@echo
-	@echo "The BK has no ROM in its bitstream either: SD:/bk/ is MAXIOL's AZBK card package"
-	@echo "(../tang-bk-epta/soft/azbk/: AZ.INI, ROM/, DISKS/ - its 'make card' stages it),"
-	@echo "else it restarts for ever on empty memory (azbk.c reads AZ.INI at start)."
+card: config-check $(foreach c,$(CORES),bin/$(c).bin)
+	$(PYTHON) tools/stage_card.py
 
 #-----------------------------------------------------------------------
 # MCU firmware
 #-----------------------------------------------------------------------
-fw:
+fw: config-defaults
 	@test -d $(TOOLS)/bouffalo_sdk || { \
 	  echo "bouffalo_sdk missing - run: make toolchain" >&2; exit 1; }
 	@test -x $(TOOLS)/toolchain_gcc_t-head_linux/bin/riscv64-unknown-elf-gcc || { \
@@ -222,17 +213,54 @@ FATFS_SRC := $(TOOLS)/bouffalo_sdk/components/fs/fatfs
 # -O0: this host's gcc 15.2 dies with an internal error at -O1 and above
 # on ff.c and two u8g2 files (13 Sep 2026), and a test needs no optimiser
 HOST_OPT  ?= -O0
-MENU_TEST_SRC := mnano/menu_test.c mnano/menu.c mnano/ultima.c \
+CJSON_SRC := $(TOOLS)/bouffalo_sdk/components/utils/cjson
+CONFIG_JSON := $(shell $(PYTHON) tools/embed_companion.py --paths)
+
+.PHONY: config-defaults config-check storage-test card-config card-stage siblings-check
+siblings-check:
+	$(PYTHON) tools/audit_siblings.py
+config-defaults: $(CONFIG_JSON) tools/embed_companion.py
+	$(PYTHON) tools/embed_companion.py
+
+config-check: config-defaults
+	@mkdir -p $(BUILD)/config
+	$(CC) $(HOST_OPT) -g -Wall -Wextra -DSDL -DCOMPANION_HOST \
+	  -Imnano -Imnano/u8g2/csrc -I$(FATFS_SRC) -I$(CJSON_SRC) \
+	  -o $(BUILD)/config/companion_test mnano/companion_test.c mnano/companion.c \
+	  mnano/ultima.c $(CJSON_SRC)/cJSON.c $(FATFS_SRC)/ff.c $(FATFS_SRC)/ffunicode.c \
+	  mnano/config_disk_stub.c
+	$(PYTHON) tools/test_companion.py
+
+storage-test: config-defaults
+	@mkdir -p $(BUILD)/config
+	$(CC) $(HOST_OPT) -g -w -DSDL \
+	  -Imnano -Imnano/u8g2/csrc -I$(FATFS_SRC) -I$(CJSON_SRC) \
+	  -o $(BUILD)/config/storage_test mnano/companion_storage_test.c \
+	  mnano/companion.c mnano/ultima.c mnano/rt11sav.c mnano/romload.c mnano/extrom.c mnano/azbk.c \
+	  $(CJSON_SRC)/cJSON.c $(FATFS_SRC)/ff.c $(FATFS_SRC)/ffunicode.c
+	$(BUILD)/config/storage_test
+
+# Stage configuration only; never overwrite a mounted card or its saved settings.
+card-config: config-check
+	$(PYTHON) tools/stage_card.py --config-only
+	@echo "JSON card files: build/card/ (copy its contents to the SD card)"
+
+# Uses existing bin/ bitstreams; it never rebuilds FPGA cores or writes SD.
+card-stage: config-check
+	$(PYTHON) tools/stage_card.py
+
+MENU_TEST_SRC := mnano/menu_test.c mnano/menu.c mnano/ultima.c mnano/companion.c $(CJSON_SRC)/cJSON.c \
   $(wildcard mnano/u8g2/csrc/*.c) mnano/u8g2/sys/bitmap/common/u8x8_d_bitmap.c \
   $(FATFS_SRC)/ff.c $(FATFS_SRC)/ffunicode.c
 
-menu-test: $(MENU_TEST_SRC) mnano/menu.h mnano/ultima.h VERSION
+menu-test: config-defaults $(MENU_TEST_SRC) mnano/menu.h mnano/ultima.h VERSION
 	@test -d $(FATFS_SRC) || { echo "bouffalo_sdk missing - run: make toolchain" >&2; exit 1; }
 	@mkdir -p $(BUILD)/menu
 	rm -f $(BUILD)/menu/*.txt $(BUILD)/menu/*.png
-	@$(CC) $(HOST_OPT) -w -DSDL -DCORE_VERSION='"$(shell head -1 VERSION)"' \
-	  -Imnano -Imnano/u8g2/csrc -I$(FATFS_SRC) -o $(BUILD)/menu/menu_test $(MENU_TEST_SRC)
+	@$(CC) $(HOST_OPT) -w -DSDL -DCOMPANION_HOST -DCORE_VERSION='"$(shell head -1 VERSION)"' \
+	  -Imnano -Imnano/u8g2/csrc -I$(FATFS_SRC) -I$(CJSON_SRC) -o $(BUILD)/menu/menu_test $(MENU_TEST_SRC)
 	$(BUILD)/menu/menu_test $(BUILD)/menu
+	COMPANION_CARD=$(ROOT)/config $(BUILD)/menu/menu_test $(BUILD)/menu
 	$(PYTHON) $(TOOLS)/osd_png.py $(BUILD)/menu/*.txt
 
 #-----------------------------------------------------------------------

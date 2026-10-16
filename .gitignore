@@ -3,7 +3,12 @@
 
 # Fetched toolchain and build products - see Makefile and tools/fetch.sh.
 # The scripts in tools/ are force-added.
-/tools/
+/tools/*
+!/tools/embed_companion.py
+!/tools/test_companion.py
+!/tools/stage_card.py
+!/tools/audit_siblings.py
+!/tools/connect_siblings.py
 /build/
 /mnano/build/
 /onboard/build/

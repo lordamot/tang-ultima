@@ -33,6 +33,7 @@
 #include <ff.h>
 
 #include "ultima.h"
+#include "companion.h"
 #include "flashwr.h"
 #include "coreload.h"
 #include "sysctrl.h"
@@ -43,18 +44,6 @@
 #include <task.h>
 #endif
 
-// The five.  The Makefile's CORES says the same thing; the order is only
-// cosmetic now that there is no ring to walk.  The BK's `dir` is also
-// azbk.h's AZ_ROOT ("/sd/bk"), by hand: azbk.c is the sibling's file
-// verbatim and reads AZ.INI, the ROMs and the units from there.
-const ultima_core_t ultima_cores[ULTIMA_CORES] = {
-  { CORE_ID_UKNC,   "UKNC",     "uknc",   "uknc.ini"   },
-  { CORE_ID_PK8000, "PK8000",   "pk8000", "pk8000.ini" },
-  { CORE_ID_KORVET, "Korvet",   "korvet", "korvet.ini" },
-  { CORE_ID_ZS256,  "ZS-256",   "zs256",  "zs256.ini"  },
-  { CORE_ID_BK,     "BK-0011M", "bk",     "bk.ini"     },
-};
-
 const ultima_core_t *ultima_core(unsigned char id) {
   for(int i=0;i<ULTIMA_CORES;i++)
     if(ultima_cores[i].id == id) return &ultima_cores[i];
@@ -62,16 +51,16 @@ const ultima_core_t *ultima_core(unsigned char id) {
 }
 
 const char *ultima_root(void) {
-  static char root[40];
+  static char root[COMPANION_PATH];
   const ultima_core_t *c = ultima_core(core_id);
   if(!c) return CARD_MOUNTPOINT;
-  snprintf(root, sizeof(root), CARD_MOUNTPOINT "/%s", c->dir);
+  if(companion_path(root, sizeof(root), CARD_MOUNTPOINT, c->dir)) return CARD_MOUNTPOINT;
   return root;
 }
 
 const char *ultima_core_path(const ultima_core_t *c) {
-  static char path[48];
-  snprintf(path, sizeof(path), ULTIMA_COREDIR "/%s.bin", c->dir);
+  static char path[COMPANION_PATH];
+  if(!c || companion_path(path, sizeof(path), CARD_MOUNTPOINT, c->bitstream)) return "";
   return path;
 }
 
@@ -81,7 +70,7 @@ const char *ultima_core_path(const ultima_core_t *c) {
 unsigned char ultima_wanted(void) {
   unsigned char id = 0;
   FIL fil;
-  char line[64];
+  char line[COMPANION_PATH];
 
   sdc_lock();
   if(f_open(&fil, ULTIMA_INI, FA_OPEN_EXISTING | FA_READ) == FR_OK) {
@@ -126,9 +115,20 @@ static void ultima_mkdir(void) {
   const ultima_core_t *c = ultima_core(core_id);
   if(!c) return;
   sdc_lock();
-  FRESULT r = f_mkdir(ultima_root());
-  if(r == FR_OK) printf("created %s\r\n", ultima_root());
-  else if(r != FR_EXIST) printf("mkdir %s: %d\r\n", ultima_root(), r);
+  char path[COMPANION_PATH];
+  snprintf(path, sizeof(path), "%s", ultima_root());
+  // Catalogs may put a machine below e.g. machines/uknc. Create each
+  // component; FatFs mkdir itself does not create missing parents.
+  for(char *p = path + strlen(CARD_MOUNTPOINT) + 1;; p++) {
+    if(*p && *p != '/') continue;
+    char saved = *p;
+    *p = 0;
+    FRESULT r = f_mkdir(path);
+    if(r == FR_OK) printf("created %s\r\n", path);
+    else if(r != FR_EXIST) { printf("mkdir %s: %d\r\n", path, r); break; }
+    *p = saved;
+    if(!saved) break;
+  }
   sdc_unlock();
 }
 
@@ -153,6 +153,7 @@ const char *flash_strerror(int err) {
 const char *ultima_strerror(int err) { return flash_strerror(err); }
 
 void ultima_boot(spi_t *spi) {
+  companion_init();
   unsigned char want = ultima_wanted();
   const ultima_core_t *running = ultima_core(core_id);
 #ifdef SDL

@@ -138,16 +138,19 @@ it is still in the three cores.
   dispatches by `core_id`), and SPI target 4 exists on the BK alone
   (`azbk.h`).  CMD 9, 10 and 11 are the only commands that are the
   same on all five.
-- **One firmware, five menus, one `core_id`.**  Everything the firmware
-  selects by core is indexed by `core_id` (5 UKNC, 7 PK8000, 8 Korvet, 9
-  ZS-256, 10 BK): `keymap[]`/`modifier[]` (usb_host.c), `settings_file_name()`,
-  `drivename()`, `ultima_cores[]`, the Debug page's byte map.  The UKNC's
-  main form is built at run time (`menu_uknc_main`); its Core entry is
-  `"S,Core,7;"` because its forms are 0..6, the other four have
-  `"S,Core,2;"`.  The BK has no keymap table: `kbd_tx_bk()` (`bk.c`)
-  does the whole translation, and `keymap[10]`/`modifier[10]` are NULL,
-  which the three key paths in `usb_host.c` now check.  `make menu-test`
-  walks all five and fails on a form that does not agree with itself.
+- **One firmware, JSON configuration, one `core_id`.** `config/companion.json`
+  defines machine directories, settings and bitstream/profile paths;
+  `config/cores/*.json` holds the menus, defaults, keyboard maps, resource
+  names and reset rules. `mnano/companion.c` loads the active profile by
+  FPGA ID (5 UKNC, 7 PK8000, 8 Korvet, 9 ZS-256, 10 BK). Embedded recovery
+  profiles are generated from the same JSON. The BK keeps its algorithmic
+  keyboard driver. `make config-check`, `make menu-test` and
+  `make siblings-check` check configuration, forms and sibling drift;
+  `make card-stage` collects assets from all five siblings into build/card/.
+  See `config/README.md`. Machine protocols remain in C.
+  All five sibling firmware Make/CMake entry points delegate here; their
+  shipped BL616 binaries must match this repository's. `make siblings-check`
+  also checks the integration recorded in `config/sibling-builds.lock.json`.
 - **Slot 5 is browsed, never mounted** - `SDC_SLOT_EXTRA`: the UKNC's
   "Run SAV:", the PK8000's "Run .bas:" and the ZS-256's "ROM:" walk the
   card through it.  `MAX_DRIVES` is 5 (the PK8000 alone had 6);
@@ -165,8 +168,8 @@ it is still in the three cores.
   `gs105a.rom` (`romload.c` - the sibling alone reads them from the
   card's root), and the BK's `/sd/bk/` is MAXIOL's AZBK card package -
   `AZ.INI`, `ROM/`, `DISKS/`, `eeprom.dat` - read by `azbk.c`, the
-  sibling's file verbatim, whose `AZ_ROOT` is `/sd/bk` by hand (the
-  sibling reads the same folder).  **The ZS-256 has no ROM in its
+  sibling's protocol, whose paths now come from the BK JSON profile (the
+  sibling reads the default `/sd/bk` folder).  **The ZS-256 has no ROM in its
   bitstream**: without `/sd/zs256/zs256.rom` it executes zeros.  **Nor
   has the BK**: without `/sd/bk/AZ.INI` and the ROM set it names it
   restarts for ever on empty memory.  Only `/sd/ultima.ini` and `/sd/cores/` are

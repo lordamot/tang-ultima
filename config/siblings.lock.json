@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "siblings": {
+    "tang-uknc": {
+      "revision": "0efb2cc87f29811074fc32f9323f078c7c60a2eb",
+      "version": "2.0.0",
+      "files": {
+        "mnano/menu.c": "3c64293db4fa69c123cb5757942c3cb07d2f0b600a362b2f024d829e8074f61e",
+        "mnano/usb_host.c": "a202dc3b55993e342a93a5974ee3f8114b8e600736593f3f4296200ac8a846af",
+        "mnano/sdc.c": "7d3a953a9364e3595cec6badfb46b18c812c7214a7f986de6943f4c010166992",
+        "mnano/sysctrl.c": "1b9413e9a95f0aef5d003abdd7cf663f833f5252a81f16405d0efb4f7c33d6ba",
+        "mnano/sysctrl.h": "491b0cb0576ef6fa7a8a34f2ee7b895014291624458a055f6b1d7f53c6f7423c",
+        "mnano/rt11sav.c": "053067897cbbc0fe476e40c32c08939775621f19ca94f4eb6d11cf93823d7c9f",
+        "mnano/rt11sav.h": "e21d2db923c6fca4cf03e22553cc6da16fcfb7c545f1a8e3541cbdde31d54afd",
+        "mnano/uknc.h": "66dc02329d233e638f3f8db6d320c002bc0489ced1d3fb9cf382a190c47d6058"
+      }
+    },
+    "tang-pk8000": {
+      "revision": "6a726566a8fa6ad7c0cdd200733f8e6c01f8c91e",
+      "version": "0.2.0 alpha",
+      "files": {
+        "mnano/menu.c": "39f254ecfa9d6ff9f3a0d2392664b94891415e31e2c98995972f2974da3597ae",
+        "mnano/usb_host.c": "8b153ff0d707a052024507c2dff5a9f55f2ca47cca1c3970a6063bc6f945e05d",
+        "mnano/sdc.c": "36079ae7f3f25497e936290b665c7357a71e2852a868152c795ddca61bfdb5f5",
+        "mnano/sysctrl.c": "7a72413aba9431f743572894bfebe0b056294a9e1ff51bb215c5aeeb5c71b1ad",
+        "mnano/sysctrl.h": "7121a7099edf344a3995dbd2c4ece23708043ab86be663c722385858e9455230",
+        "mnano/bas.c": "f58654ab9949e4eab0c31c9ac04e75c45f1a3e35819c8d2949beb0c36cbdcbe4",
+        "mnano/bas.h": "acf1ed84cee4e8696c17c9cd0cda6ecf3902a700597fc13a7bb66dd876ba1bda",
+        "mnano/pk8000.h": "24471056c7622e64170b366cbc253a0406e853af31f216e270b1b9b6d34d7419"
+      }
+    },
+    "tang-korvet": {
+      "revision": "32e185341da124cfdb1312d739b1abed053e56d3",
+      "version": "0.1.0 alpha",
+      "files": {
+        "mnano/menu.c": "d5e2eeac2d3a9a092c854f1a67316d97feba6b3778227f141f4f63866977b1aa",
+        "mnano/usb_host.c": "9e26b60ed7a3713ebc5d07f94ecdbd40a496c2fdffecd1bf4497954205a9b6e3",
+        "mnano/sdc.c": "a32b867118b8638314a55a0fad4032b341b3a1591a9bef07d4a6a987c3bbd4e6",
+        "mnano/sysctrl.c": "7d25562150a5fb0e4e048809243f0f1cc8bc314add804d65d5dcccabe64c0f13",
+        "mnano/sysctrl.h": "af474a1ad473ed3840240e41d0c2cd201262fa3240c733e95d4902bafdaf4ead",
+        "mnano/extrom.c": "646b5ecc9d5a35b75322ae72c8dcd84f49d39502a88971e69fdbd333bfa8c78e",
+        "mnano/extrom.h": "1a30e606e615e6b7ae6ea68065ce6d14d77e47a302b6e0f6c042a080d0d92470",
+        "mnano/korvet.h": "f5439010c0606306f4ccc866c9a7ce8f9912f9a65664e1b12736aa712d5d2209"
+      }
+    },
+    "tang-zs256": {
+      "revision": "3c241f5580859aedcbc2806391040f4f8c90fe4d",
+      "version": "0.1.3 alpha",
+      "files": {
+        "mnano/menu.c": "18fd60311f04ddc289e1fa277af3babe6e15b42d62bdd70bc1e28ba679c308cb",
+        "mnano/usb_host.c": "713261636c9d42bf9abcf4a1e85a959125f3131c0e219c3dc503ed707078eb61",
+        "mnano/sdc.c": "b8d9a03f1a6ac2c3dbde2741e52e3ebc37f2cccede0be5693ca56a5384e90370",
+        "mnano/sysctrl.c": "129b56aea62dfdc69df8c17b5f3942640b0cd92efd6c1007480e78935f32d166",
+        "mnano/sysctrl.h": "e6752edf39279cfaa95a48398f39e3d4a377f9952f7cb0c807c57667f29ea8c9",
+        "mnano/romload.c": "3b8348bebb561c2a7e875ea1e550167dc5da3d4cc6e15da5c78a6919f8948951",
+        "mnano/romload.h": "2b8907cca267a7cc18b0769fe825fa2c3cce9dcdfaccfdc70ed9289bf3e21301",
+        "mnano/zs256.h": "16725ac5a7f71026e171810632395db483b1ea1dffe5d486d24ee8b337f6eb08"
+      }
+    },
+    "tang-bk-epta": {
+      "revision": "b9b10371469a91560c17da3fd5626fe874b1f3f8",
+      "version": "0.1.28",
+      "files": {
+        "mnano/menu.c": "768947d9ebc7026c5f5817f082eefc1231cce7fb543ea8ea14e04b29d4bddcb4",
+        "mnano/usb_host.c": "25a62f834f2b0c37cce66ed0b3c09ac1a56f4f9cf5f485de1b5645e057f7208b",
+        "mnano/sdc.c": "3e4b21b9b56ed5ac371b5104b8f626ea7968649d314b1af99703aeb4a8b26199",
+        "mnano/sysctrl.c": "44361629d28411b3f45fcc5abb558811e8073d7b374b5ea090c1e49ea42b369f",
+        "mnano/sysctrl.h": "d4023ce510b6ccb3bd661cacd1673ba2e55bca6242438fd4d6f2d420845bed00",
+        "mnano/azbk.c": "49bc2a05aab57761d58705553e269262199771e5f4a285105fd696229e63e622",
+        "mnano/azbk.h": "0d9ea511dba3691b99eaa4dbe23ed7e203ed38270eef2ea358cdaef2afa79e4f",
+        "mnano/bk.c": "acb55841e61bac5ca20960dd9c294076b7e1c8b832f4dca6bfa9a73b8200bed1",
+        "mnano/bk.h": "6274b33adfa73590df4fd409674b360e1e3d6275bd5783b5e7332a652df40b16"
+      }
+    }
+  }
+}

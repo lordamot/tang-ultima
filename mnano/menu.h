@@ -17,7 +17,7 @@
 
 // variables
 typedef struct {
-  const char id;
+  char id;
   union {
     int value;
     void *ptr;

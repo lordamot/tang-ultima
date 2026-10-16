@@ -1,3 +1,50 @@
+# Handover, 16 October 2026: all five sibling build paths connected
+
+The shared JSON companion is now connected in all five actual siblings:
+UKNC, PK8000, Korvet, ZS-256 and BK. Top-level make fw, direct mnano Make,
+and CMake all delegate to tang-ultima and were each built and byte-compared.
+Their card/card-config targets use the shared JSON layout; menu/config/storage
+checks run here. Each shipped bin/bl616.bin is byte-identical to this one
+(514800 bytes, SHA256 973f6fad1b0817788baefd8aca98724e93baadbcbbbd2431f1a1da1bd6355a80).
+
+make siblings-check checks the six shipped images and the connected build
+entry points in config/sibling-builds.lock.json. See config/README.md and
+each sibling's SHARED-COMPANION.md. Verification logs and the reviewed patch
+are in build/sibling-integration/. The earlier note below saying sibling
+builds were unchanged describes the initial refactor; this step completes it.
+
+No FPGA sources or bitstreams changed. No flashing or board validation.
+No commits or pushes. Follow each repository's Git rules before committing.
+
+---
+
+# Handover, 16 October 2026: JSON companion refactor
+
+One M0S Dock firmware now uses SD-card JSON profiles for all five machines.
+Start with config/README.md, config/companion.json and config/cores/*.json.
+The profiles were collected from the current five siblings, including UKNC
+2.0.0's /uknc layout. Sibling sources are untouched; their standalone fw
+targets still build their old copies. The common binary to use is here.
+
+bin/bl616.bin is rebuilt (514800 bytes), identical to build/fw/bl616.bin.
+make fw builds, both menu-test modes pass (49 screens each), 52 config
+checks and the production FatFs storage test pass, including ASan/UBSan.
+No hardware was flashed or tested. progress.md has the exact evidence and
+checksum. No commits or pushes.
+
+make card-stage prepares build/card/ from existing bitstreams, JSON and
+assets from all five siblings; copy the contents to the SD card while
+preserving existing writable media/settings. JSON edits apply after a dock
+restart. Invalid/missing card profiles use generated embedded defaults.
+Only machine protocols stay compiled in C. make siblings-check tracks
+upstream firmware-source drift.
+
+Next board check: flash this shared dock binary with the Tang disconnected
+from the flashing host, use the staged card, then check menus, media, ROM
+loading and switching on each machine. The on-board stage2 is unchanged.
+
+---
+
 # Handover, 25 September 2026 - the BK at 0.1.28
 
 BK Nano's latest (the "Covox 177714" switch, Off by default - the fix

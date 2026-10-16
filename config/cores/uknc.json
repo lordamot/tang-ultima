@@ -1,0 +1,778 @@
+{
+  "version": 1,
+  "id": 5,
+  "protocol": "uknc",
+  "source": "tang-uknc",
+  "forms": [
+    {
+      "title": "UKNC Nano",
+      "parent": null,
+      "entries": [
+        {
+          "type": "file",
+          "label": "FDD0:",
+          "slot": 0,
+          "extensions": [
+            "dsk"
+          ]
+        },
+        {
+          "type": "file",
+          "label": "HDD0:",
+          "slot": 4,
+          "extensions": [
+            "img"
+          ],
+          "visible_if": "e"
+        },
+        {
+          "type": "file",
+          "label": "Run SAV:",
+          "slot": 5,
+          "extensions": [
+            "sav"
+          ]
+        },
+        {
+          "type": "button",
+          "label": "Reset",
+          "action": "R"
+        },
+        {
+          "type": "submenu",
+          "label": "Hardware",
+          "form": 1
+        },
+        {
+          "type": "submenu",
+          "label": "Core",
+          "form": 7
+        },
+        {
+          "type": "text",
+          "label": "About"
+        },
+        {
+          "type": "button",
+          "label": "Save settings",
+          "action": "S"
+        }
+      ]
+    },
+    {
+      "title": "Hardware",
+      "parent": 0,
+      "entries": [
+        {
+          "type": "list",
+          "label": "Volume:",
+          "options": [
+            "Mute",
+            "33%",
+            "66%",
+            "100%"
+          ],
+          "variable": "A"
+        },
+        {
+          "type": "list",
+          "label": "Beeper:",
+          "options": [
+            "Mute",
+            "On"
+          ],
+          "variable": "b"
+        },
+        {
+          "type": "submenu",
+          "label": "Aberrant",
+          "form": 2
+        },
+        {
+          "type": "list",
+          "label": "Covox:",
+          "options": [
+            "Off",
+            "Port 177372",
+            "Port 177100 LPT",
+            "Both"
+          ],
+          "variable": "c"
+        },
+        {
+          "type": "submenu",
+          "label": "FDD controller",
+          "form": 3
+        },
+        {
+          "type": "submenu",
+          "label": "HDD controller",
+          "form": 4
+        },
+        {
+          "type": "list",
+          "label": "Mouse:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "u"
+        },
+        {
+          "type": "submenu",
+          "label": "RTC clock",
+          "form": 5
+        },
+        {
+          "type": "submenu",
+          "label": "Misc",
+          "form": 6
+        }
+      ]
+    },
+    {
+      "title": "Aberrant",
+      "parent": 1,
+      "entries": [
+        {
+          "type": "list",
+          "label": "AY1:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "1"
+        },
+        {
+          "type": "list",
+          "label": "AY2:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "2"
+        },
+        {
+          "type": "list",
+          "label": "AY3:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "3"
+        },
+        {
+          "type": "list",
+          "label": "Stereo:",
+          "options": [
+            "Mono",
+            "ABC"
+          ],
+          "variable": "o"
+        },
+        {
+          "type": "list",
+          "label": "Low-pass:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "l"
+        },
+        {
+          "type": "list",
+          "label": "Old freaks:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "g"
+        }
+      ]
+    },
+    {
+      "title": "FDD controller",
+      "parent": 1,
+      "entries": [
+        {
+          "type": "list",
+          "label": "FDD controller:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "f"
+        },
+        {
+          "type": "file",
+          "label": "FDD0:",
+          "slot": 0,
+          "extensions": [
+            "dsk"
+          ]
+        },
+        {
+          "type": "list",
+          "label": "FDD0 write prot.:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "p"
+        },
+        {
+          "type": "file",
+          "label": "FDD1:",
+          "slot": 1,
+          "extensions": [
+            "dsk"
+          ]
+        },
+        {
+          "type": "list",
+          "label": "FDD1 write prot.:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "q"
+        },
+        {
+          "type": "file",
+          "label": "FDD2:",
+          "slot": 2,
+          "extensions": [
+            "dsk"
+          ]
+        },
+        {
+          "type": "list",
+          "label": "FDD2 write prot.:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "r"
+        },
+        {
+          "type": "file",
+          "label": "FDD3:",
+          "slot": 3,
+          "extensions": [
+            "dsk"
+          ]
+        },
+        {
+          "type": "list",
+          "label": "FDD3 write prot.:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "s"
+        }
+      ]
+    },
+    {
+      "title": "HDD controller",
+      "parent": 1,
+      "entries": [
+        {
+          "type": "list",
+          "label": "HDD controller:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "e"
+        },
+        {
+          "type": "file",
+          "label": "HDD0:",
+          "slot": 4,
+          "extensions": [
+            "img"
+          ]
+        },
+        {
+          "type": "list",
+          "label": "HDD write prot.:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "K"
+        },
+        {
+          "type": "list",
+          "label": "Image format:",
+          "options": [
+            "Auto",
+            "Plain",
+            "Inversed"
+          ],
+          "variable": "J"
+        },
+        {
+          "type": "list",
+          "label": "HDD delay:",
+          "options": [
+            "0",
+            "25",
+            "50",
+            "75",
+            "100",
+            "125",
+            "150",
+            "175",
+            "200",
+            "225",
+            "250",
+            "275",
+            "300",
+            "325",
+            "350",
+            "375",
+            "400",
+            "425",
+            "450",
+            "475",
+            "500",
+            "525",
+            "550",
+            "575",
+            "600",
+            "625",
+            "650",
+            "675",
+            "700",
+            "725",
+            "750",
+            "775",
+            "800",
+            "825",
+            "850",
+            "875",
+            "900",
+            "925",
+            "950",
+            "975"
+          ],
+          "variable": "D"
+        }
+      ]
+    },
+    {
+      "title": "RTC clock",
+      "parent": 1,
+      "entries": [
+        {
+          "type": "list",
+          "label": "RTC controller:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "t"
+        },
+        {
+          "type": "list",
+          "label": "Year:",
+          "options": [
+            "2020",
+            "2021",
+            "2022",
+            "2023",
+            "2024",
+            "2025",
+            "2026",
+            "2027",
+            "2028",
+            "2029",
+            "2030",
+            "2031",
+            "2032",
+            "2033",
+            "2034",
+            "2035",
+            "2036",
+            "2037",
+            "2038",
+            "2039"
+          ],
+          "variable": "y"
+        },
+        {
+          "type": "list",
+          "label": "Month:",
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12"
+          ],
+          "variable": "m"
+        },
+        {
+          "type": "list",
+          "label": "Day:",
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18",
+            "19",
+            "20",
+            "21",
+            "22",
+            "23",
+            "24",
+            "25",
+            "26",
+            "27",
+            "28",
+            "29",
+            "30",
+            "31"
+          ],
+          "variable": "d"
+        },
+        {
+          "type": "list",
+          "label": "Hour:",
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18",
+            "19",
+            "20",
+            "21",
+            "22",
+            "23"
+          ],
+          "variable": "h"
+        },
+        {
+          "type": "list",
+          "label": "Minute:",
+          "options": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13",
+            "14",
+            "15",
+            "16",
+            "17",
+            "18",
+            "19",
+            "20",
+            "21",
+            "22",
+            "23",
+            "24",
+            "25",
+            "26",
+            "27",
+            "28",
+            "29",
+            "30",
+            "31",
+            "32",
+            "33",
+            "34",
+            "35",
+            "36",
+            "37",
+            "38",
+            "39",
+            "40",
+            "41",
+            "42",
+            "43",
+            "44",
+            "45",
+            "46",
+            "47",
+            "48",
+            "49",
+            "50",
+            "51",
+            "52",
+            "53",
+            "54",
+            "55",
+            "56",
+            "57",
+            "58",
+            "59"
+          ],
+          "variable": "n"
+        },
+        {
+          "type": "info",
+          "label": "rtc"
+        }
+      ]
+    },
+    {
+      "title": "Misc",
+      "parent": 1,
+      "entries": [
+        {
+          "type": "list",
+          "label": "Color:",
+          "options": [
+            "RGB",
+            "BGR"
+          ],
+          "variable": "V"
+        },
+        {
+          "type": "button",
+          "label": "Cold Boot",
+          "action": "B"
+        }
+      ]
+    },
+    {
+      "title": "Core",
+      "parent": 0,
+      "entries": [
+        {
+          "type": "cores"
+        }
+      ]
+    }
+  ],
+  "defaults": {
+    "A": 1,
+    "b": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1,
+    "c": 0,
+    "o": 1,
+    "l": 1,
+    "g": 0,
+    "f": 1,
+    "p": 0,
+    "q": 0,
+    "r": 0,
+    "s": 0,
+    "e": 0,
+    "K": 0,
+    "J": 0,
+    "D": 30,
+    "u": 0,
+    "t": 0,
+    "y": 6,
+    "m": 0,
+    "d": 0,
+    "h": 0,
+    "n": 0,
+    "V": 0
+  },
+  "keyboard": {
+    "driver": "uknc",
+    "keymap": [
+      0,
+      0,
+      0,
+      0,
+      58,
+      62,
+      40,
+      47,
+      27,
+      39,
+      45,
+      110,
+      59,
+      23,
+      42,
+      46,
+      74,
+      44,
+      61,
+      43,
+      55,
+      60,
+      73,
+      76,
+      41,
+      95,
+      57,
+      77,
+      56,
+      111,
+      24,
+      25,
+      26,
+      11,
+      28,
+      29,
+      14,
+      15,
+      127,
+      126,
+      107,
+      6,
+      90,
+      22,
+      75,
+      125,
+      125,
+      30,
+      31,
+      94,
+      63,
+      7,
+      109,
+      63,
+      79,
+      93,
+      123,
+      71,
+      8,
+      9,
+      10,
+      12,
+      13,
+      122,
+      106,
+      105,
+      121,
+      4,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      91,
+      78,
+      92,
+      108,
+      0,
+      123,
+      124,
+      21,
+      89,
+      118,
+      87,
+      103,
+      119,
+      88,
+      104,
+      120,
+      85,
+      101,
+      117,
+      86,
+      102,
+      0
+    ],
+    "modifiers": [
+      38,
+      69,
+      70,
+      0,
+      38,
+      69,
+      54,
+      0
+    ]
+  },
+  "drive_names": [
+    "FDD0",
+    "FDD1",
+    "FDD2",
+    "FDD3",
+    "HDD"
+  ],
+  "resources": {
+    "sav_base": "RT11BASE.DSK",
+    "sav_base_alt": "BASERT11.DSK",
+    "sav_disk": "RT11SAV.DSK"
+  },
+  "save_extra_slot": false,
+  "reset_on_change": {},
+  "about": [
+    "UKNC Nano author: Alex Gurov",
+    "",
+    "v2.x update authors: Sergei Lemeshev, ClaudeCode",
+    "",
+    "Greets and big thanks to:",
+    "",
+    "nzeemin - specially for his great UKNCBTL emulator and programs",
+    "blairecas - specially for his programs and BadApple demo for UKNC",
+    "reddie - heavy support with everything - programming, testing help, and lots of ideas and advices during this so-called-development",
+    "xrust - specially for great efforts on creating and redesigining peripherals",
+    "",
+    "And all our community who made it real, after all"
+  ],
+  "assets": [
+    {
+      "source": "soft/BASERT11.DSK",
+      "resource": "sav_base_alt"
+    },
+    {
+      "source": "soft/*.SAV",
+      "destination": "."
+    }
+  ]
+}

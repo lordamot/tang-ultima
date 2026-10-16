@@ -1,0 +1,5 @@
+commit all then. and allow to push
+
+************************************************************************
+
+I’ll commit the shared firmware changes in tang-ultima and all five siblings, excluding BK’s unrelated AGENTS.md, then push the six commits to their configured remotes. GitHub rejected SSH authentication for all six remotes; the existing GitHub CLI login is invalid. Local commits can proceed independently.

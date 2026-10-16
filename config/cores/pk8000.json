@@ -1,0 +1,390 @@
+{
+  "version": 1,
+  "id": 7,
+  "protocol": "pk8000",
+  "source": "tang-pk8000",
+  "forms": [
+    {
+      "title": "PK8000 Nano",
+      "parent": null,
+      "entries": [
+        {
+          "type": "file",
+          "label": "Tape:",
+          "slot": 0,
+          "extensions": [
+            "cas"
+          ]
+        },
+        {
+          "type": "file",
+          "label": "Floppy A:",
+          "slot": 1,
+          "extensions": [
+            "fdd"
+          ]
+        },
+        {
+          "type": "file",
+          "label": "Floppy B:",
+          "slot": 2,
+          "extensions": [
+            "fdd"
+          ]
+        },
+        {
+          "type": "file",
+          "label": "Hard disk:",
+          "slot": 3,
+          "extensions": [
+            "img",
+            "hdd"
+          ]
+        },
+        {
+          "type": "file",
+          "label": "Run .bas:",
+          "slot": 5,
+          "extensions": [
+            "bas"
+          ]
+        },
+        {
+          "type": "button",
+          "label": "Reset",
+          "action": "R"
+        },
+        {
+          "type": "submenu",
+          "label": "Hardware",
+          "form": 1
+        },
+        {
+          "type": "submenu",
+          "label": "Core",
+          "form": 2
+        },
+        {
+          "type": "text",
+          "label": "About"
+        },
+        {
+          "type": "text",
+          "label": "Debug"
+        },
+        {
+          "type": "button",
+          "label": "Save settings",
+          "action": "S"
+        }
+      ]
+    },
+    {
+      "title": "Hardware",
+      "parent": 0,
+      "entries": [
+        {
+          "type": "list",
+          "label": "Floppy:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "f"
+        },
+        {
+          "type": "list",
+          "label": "IDE:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "i"
+        },
+        {
+          "type": "list",
+          "label": "ROM disk:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "r"
+        },
+        {
+          "type": "file",
+          "label": "ROM file:",
+          "slot": 4,
+          "extensions": [
+            "bin",
+            "rom"
+          ]
+        },
+        {
+          "type": "list",
+          "label": "Tape:",
+          "options": [
+            "Stop",
+            "Play"
+          ],
+          "variable": "T"
+        },
+        {
+          "type": "button",
+          "label": "Rewind tape",
+          "action": "e"
+        },
+        {
+          "type": "list",
+          "label": "AY card:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "y"
+        },
+        {
+          "type": "list",
+          "label": "Volume:",
+          "options": [
+            "Mute",
+            "33%",
+            "66%",
+            "100%"
+          ],
+          "variable": "A"
+        },
+        {
+          "type": "list",
+          "label": "Beeper:",
+          "options": [
+            "Mute",
+            "On"
+          ],
+          "variable": "b"
+        },
+        {
+          "type": "list",
+          "label": "CPU waits:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "w"
+        },
+        {
+          "type": "list",
+          "label": "Joysticks:",
+          "options": [
+            "Normal",
+            "Swapped"
+          ],
+          "variable": "j"
+        },
+        {
+          "type": "list",
+          "label": "Floppy A prot.:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "p"
+        },
+        {
+          "type": "list",
+          "label": "Floppy B prot.:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "q"
+        },
+        {
+          "type": "list",
+          "label": "HDD prot.:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "K"
+        }
+      ]
+    },
+    {
+      "title": "Core",
+      "parent": 0,
+      "entries": [
+        {
+          "type": "cores"
+        }
+      ]
+    }
+  ],
+  "defaults": {
+    "A": 1,
+    "b": 1,
+    "w": 1,
+    "j": 0,
+    "f": 0,
+    "i": 0,
+    "r": 0,
+    "T": 1,
+    "y": 1,
+    "p": 0,
+    "q": 0,
+    "K": 0
+  },
+  "keyboard": {
+    "driver": "ps2",
+    "keymap": [
+      0,
+      0,
+      0,
+      0,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      1,
+      64,
+      59,
+      62,
+      60,
+      65,
+      12,
+      20,
+      17,
+      19,
+      18,
+      18,
+      15,
+      14,
+      22,
+      11,
+      13,
+      16,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      21,
+      61,
+      53,
+      52,
+      51,
+      63,
+      0,
+      0,
+      0,
+      61,
+      67,
+      76,
+      79,
+      68,
+      77,
+      78,
+      72,
+      69,
+      71,
+      70,
+      0,
+      68,
+      67,
+      66,
+      0,
+      64,
+      76,
+      71,
+      74,
+      76,
+      75,
+      77,
+      73,
+      70,
+      74,
+      78,
+      78,
+      0
+    ],
+    "modifiers": [
+      50,
+      49,
+      51,
+      0,
+      50,
+      49,
+      52,
+      0
+    ]
+  },
+  "drive_names": [
+    "Tape",
+    "A",
+    "B",
+    "HDD",
+    "ROM"
+  ],
+  "resources": {},
+  "save_extra_slot": false,
+  "reset_on_change": {},
+  "about": [
+    "PK8000 Nano - the Сура ПК8000 on a Tang Nano 20K",
+    "",
+    "Authors: Sergei Lemeshev, Claude Code",
+    "",
+    "Built on Alexey Gurov's UKNC Nano and on MiSTeryNano (Till Harbaum)",
+    "The КР580ВМ80А core is vm80a by 1801BM1 (Vslav), CC-BY 3.0",
+    "Hardware knowledge from Emu80 (Viktor Pykhonin) and MAME",
+    "WD1793 core by MikeJ and Sorgelig (MiSTer), CC-BY vm80a, Emu80/MAME for the hardware"
+  ],
+  "assets": [
+    {
+      "source": "soft/*.cas",
+      "destination": "."
+    },
+    {
+      "source": "soft/*.bas",
+      "destination": "."
+    },
+    {
+      "source": "soft/*.fdd",
+      "destination": "."
+    },
+    {
+      "source": "soft/*.img",
+      "destination": "."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+complex task. need you to collect all siblings and generalize companion bl - so same firmware but config in readable form - json! main deal - same firmware everuwhere, only conf matters. check uknc sibling - and fix all paths to be compatible
+
+************************************************************************
+
+Implemented in tang-ultima: one shared BL616 binary for all five cores, with JSON-controlled menus, defaults, keymaps and file paths.
+
+Firmware: bin/bl616.bin
+Configuration and usage: config/README.md
+Staged SD layout: build/card/ (67 files)
+
+UKNC's current layout is supported. Sibling repositories remain unchanged.
+
+Verified: firmware build, 52 configuration checks, both five-core menu walks, FAT storage tests and ASan/UBSan. Not flashed or board-tested. No commits.

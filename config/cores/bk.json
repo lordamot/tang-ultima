@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "id": 10,
+  "protocol": "bk",
+  "source": "tang-bk-epta",
+  "forms": [
+    {
+      "title": "BK Nano",
+      "parent": null,
+      "entries": [
+        {
+          "type": "file",
+          "label": "AZ0:",
+          "slot": 0,
+          "extensions": [
+            "img",
+            "bkd",
+            "dsk"
+          ]
+        },
+        {
+          "type": "file",
+          "label": "AZ1:",
+          "slot": 1,
+          "extensions": [
+            "img",
+            "bkd",
+            "dsk"
+          ]
+        },
+        {
+          "type": "file",
+          "label": "AZ2:",
+          "slot": 2,
+          "extensions": [
+            "img",
+            "bkd",
+            "dsk"
+          ]
+        },
+        {
+          "type": "file",
+          "label": "AZ3:",
+          "slot": 3,
+          "extensions": [
+            "img",
+            "bkd",
+            "dsk"
+          ]
+        },
+        {
+          "type": "button",
+          "label": "Reset",
+          "action": "R"
+        },
+        {
+          "type": "submenu",
+          "label": "Hardware",
+          "form": 1
+        },
+        {
+          "type": "submenu",
+          "label": "Core",
+          "form": 2
+        },
+        {
+          "type": "text",
+          "label": "About"
+        },
+        {
+          "type": "button",
+          "label": "Save settings",
+          "action": "S"
+        }
+      ]
+    },
+    {
+      "title": "Hardware",
+      "parent": 0,
+      "entries": [
+        {
+          "type": "list",
+          "label": "CPU:",
+          "options": [
+            "4 MHz",
+            "8 MHz"
+          ],
+          "variable": "T"
+        },
+        {
+          "type": "list",
+          "label": "Joystick:",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "variable": "j"
+        },
+        {
+          "type": "list",
+          "label": "Covox 177714:",
+          "options": [
+            "Off",
+            "AZ setup"
+          ],
+          "variable": "c"
+        },
+        {
+          "type": "list",
+          "label": "Volume:",
+          "options": [
+            "Mute",
+            "33%",
+            "66%",
+            "100%"
+          ],
+          "variable": "A"
+        }
+      ]
+    },
+    {
+      "title": "Core",
+      "parent": 0,
+      "entries": [
+        {
+          "type": "cores"
+        }
+      ]
+    }
+  ],
+  "defaults": {
+    "A": 1,
+    "T": 0,
+    "j": 1,
+    "c": 0
+  },
+  "keyboard": {
+    "driver": "bk"
+  },
+  "drive_names": [
+    "AZ0",
+    "AZ1",
+    "AZ2",
+    "AZ3",
+    "-"
+  ],
+  "resources": {
+    "az_ini": "AZ.INI",
+    "az_eeprom": "eeprom.dat"
+  },
+  "save_extra_slot": false,
+  "reset_on_change": {},
+  "about": [
+    "BK Nano ",
+    " - a BK-0011M with an AZBK controller on a Tang Nano 20K",
+    "",
+    "Authors: Sergei Lemeshev, Claude Code.  MIT licence; the K1801VM1 model GPL v2",
+    "",
+    "K1801VM1 at 4 or 8 MHz, 128 KB, BASIC and BOS.  The AZBK: 32 MB mapper, 256-colour 1024x768 display with three layers, blitter, two AYs, Covox, sound DMA, disks from the SD card, EEPROM, clock - no network",
+    "Dangerous Dave in the Haunted Mansion (grf, 2025) runs; ANDOS, MKDOS and the BK monitor boot from the card",
+    "",
+    "F12 the menu, F11 reset, Alt+Win the BK screen as its mono or colour output, Alt+Left Ctrl the palettes back; the key map: keyboard-ru.pdf",
+    "",
+    "The AZBK is MAXIOL's (2021-2026), as documented at forum.maxiol.com and modelled by GID's BKemu; the card package is his.  K1801VM1: Vslav's model in Sorgelig's MiSTer core; YM2149: MikeJ, Sorgelig",
+    "Built on ZS-256, Korvet, PK8000 and UKNC Nano (Alexey Gurov) and MiSTeryNano (Till Harbaum)"
+  ],
+  "assets": [
+    {
+      "source": "soft/azbk",
+      "destination": "."
+    }
+  ]
+}

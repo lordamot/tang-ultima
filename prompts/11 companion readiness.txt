@@ -1,0 +1,5 @@
+all ready?
+
+************************************************************************
+
+Ready for board testing: the shared firmware, JSON profiles and SD layout are prepared, and host checks passed. Hardware validation remains. The siblings’ standalone build targets still use their original firmware; use tang-ultima/bin/bl616.bin for all five cores.

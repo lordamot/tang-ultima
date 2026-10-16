@@ -20,8 +20,9 @@
 #include <ff.h>
 #include "sdc.h"
 #include "sysctrl.h"
+#include "companion.h"
 typedef FIL xfile;
-static const char *xroot = EXTROM_ROOT;
+static char xroot[COMPANION_PATH];
 static int xopen(xfile *f, const char *path, int write) {
   return f_open(f, path, write ? (FA_READ | FA_WRITE) : FA_READ) == FR_OK;
 }
@@ -154,7 +155,7 @@ static void put_name(const char *s) {
 // MOUNT.CFG: four (folder, file) pairs of 14 bytes, then the folder
 //------------------------------------------------------------------------
 static void mount_cfg_read(void) {
-  char path[64];
+  char path[320];
   xfile f;
   xpath(path, sizeof(path), NULL, "MOUNT.CFG");
   if(xopen(&f, path, 0)) {
@@ -182,7 +183,7 @@ static void mount_cfg_read(void) {
 }
 
 static void mount_cfg_write_drive(int d) {
-  char path[64];
+  char path[320];
   xfile f;
   xpath(path, sizeof(path), NULL, "MOUNT.CFG");
   if(xopen(&f, path, 1)) {
@@ -194,7 +195,7 @@ static void mount_cfg_write_drive(int d) {
 }
 
 static void mount_cfg_write_folder(void) {
-  char path[64];
+  char path[320];
   xfile f;
   xpath(path, sizeof(path), NULL, "MOUNT.CFG");
   if(xopen(&f, path, 1)) {
@@ -210,7 +211,7 @@ static void mount_cfg_write_folder(void) {
 // drive A from the substitute file when that mode is on
 //------------------------------------------------------------------------
 static int open_sector_file(xfile *f, int d, int trk, int write) {
-  char path[64];
+  char path[320];
   int subst_tracks = (subst_number == 1) ? 3 : 2;
   if(!write && substitute && d == 0 && trk < subst_tracks)
     xpath(path, sizeof(path), NULL, sysfiles[subst_number]);
@@ -251,7 +252,7 @@ static void write_sector(void) {
 // The mount commands
 //------------------------------------------------------------------------
 static void do_getname(void) {
-  char path[64];
+  char path[320];
   xfile f;
   strncpy(drive_file[e_drv], (char *)in_buf, 13); drive_file[e_drv][13] = 0;
   strncpy(drive_folder[e_drv], diskfolder, 13); drive_folder[e_drv][13] = 0;
@@ -264,7 +265,7 @@ static void do_getname(void) {
 }
 
 static void do_setfolder(void) {
-  char path[64];
+  char path[320];
   char name[14];
   strncpy(name, (char *)in_buf, 13); name[13] = 0;
   xpath(path, sizeof(path), NULL, name);
@@ -280,7 +281,7 @@ static const unsigned char infosector[32] = {
   0x28, 0x00, 0x04, 0x0f, 0x00, 0x8a, 0x01, 0x7f, 0x00, 0xc0, 0x00, 0x20, 0x00, 0x02, 0x00, 0x10 };
 
 static void do_create(void) {
-  char path[64];
+  char path[320];
   xfile f;
   unsigned char fb[256];
   strncpy(drive_file[e_drv], (char *)in_buf, 13); drive_file[e_drv][13] = 0;
@@ -298,7 +299,7 @@ static void do_create(void) {
 }
 
 static void send_list(int dirs) {
-  char path[64];
+  char path[320];
   char name[14];
   int isdir;
   if(dirs) xpath(path, sizeof(path), NULL, "");
@@ -367,7 +368,7 @@ static void do_command(void) {
 // the bytes (stage1.asm)
 //------------------------------------------------------------------------
 static void stage1(unsigned char n) {
-  char path[64];
+  char path[320];
   char name[16];
   xfile f;
   unsigned char buf[64];
@@ -469,8 +470,9 @@ static const unsigned char stage1_builtin[256] = {
   0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xa9 };
 
 void extrom_init(spi_t *spi) {
+  snprintf(xroot, sizeof(xroot), "%s", companion_resource("extrom"));
   unsigned char rom[256];
-  char path[64];
+  char path[320];
   xfile f;
   xspi = spi;
   memcpy(rom, stage1_builtin, 256);

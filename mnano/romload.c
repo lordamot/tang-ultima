@@ -19,6 +19,7 @@
 #include "sysctrl.h"
 #include "sdc.h"
 #include "ultima.h"
+#include "companion.h"
 
 unsigned long rom_size_zs = 0, rom_size_gs = 0;
 
@@ -51,7 +52,7 @@ static const char *rom_path(int slot, const char *dflt, char *buf, int len) {
   char *cwd = (slot >= 0) ? sdc_get_cwd(slot) : NULL;
   char *name = (slot >= 0) ? sdc_get_image_name(slot) : NULL;
   if(cwd && name) snprintf(buf, len, "%s/%s", cwd, name);
-  else snprintf(buf, len, "%s/%s", ultima_root(), dflt);
+  else snprintf(buf, len, "%s", dflt);
   return buf;
 }
 
@@ -64,10 +65,10 @@ static void rom_tell(spi_t *spi) {
 
 void rom_boot(spi_t *spi) {
   char path[300];
-  rom_size_zs = rom_load(spi, rom_path(SDC_SLOT_ROM, ROM_FILE_ZS, path, sizeof(path)), ROM_ADDR_ZS, ROM_MAX_ZS);
-  rom_size_gs = rom_load(spi, rom_path(-1, ROM_FILE_GS, path, sizeof(path)), ROM_ADDR_GS, ROM_MAX_GS);
+  rom_size_zs = rom_load(spi, rom_path(SDC_SLOT_ROM, companion_resource("rom"), path, sizeof(path)), ROM_ADDR_ZS, ROM_MAX_ZS);
+  rom_size_gs = rom_load(spi, rom_path(-1, companion_resource("gs_rom"), path, sizeof(path)), ROM_ADDR_GS, ROM_MAX_GS);
   rom_tell(spi);
-  if(!rom_size_zs) printf("ROM: no " ROM_FILE_ZS " - the machine has nothing to run\r\n");
+  if(!rom_size_zs) printf("ROM: no %s - the machine has nothing to run\r\n", companion_resource("rom"));
 }
 
 void rom_select(spi_t *spi, const char *path) {
