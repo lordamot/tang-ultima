@@ -1,0 +1,13 @@
+done?
+
+****
+
+Yes—Ultima integration is complete, built, and host-tested. Binaries and SD card files are ready.
+
+Hardware testing remains: nothing was flashed, and Evo’s existing video corruption is unresolved. No commits made.
+
+commit-push then
+
+****
+
+Committed and pushed Evo, Ultima, and the five shared firmware updates to main. All seven remote branches verified.
