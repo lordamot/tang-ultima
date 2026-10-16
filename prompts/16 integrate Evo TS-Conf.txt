@@ -1,0 +1,5 @@
+and update ultima then
+
+****
+
+Integrated ZX Evolution TS-Conf as the sixth Ultima core. Added the profile, build/card entries, ROM/CMOS/virtual SD and keyboard hooks. Host config/menu/storage/virtual SD checks and firmware/FPGA builds pass; Evo timing gate reports no setup or hold violations. Physical-board video corruption remains unresolved. No commit, push or board flash.

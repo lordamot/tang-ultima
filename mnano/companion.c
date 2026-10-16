@@ -32,8 +32,8 @@ static int initialized;
 static char error_text[160];
 static char core_form[512];
 static char form_buffer[FORM_MAX];
-static const unsigned char supported_ids[] = {5, 7, 8, 9, 10};
-static const char *const protocols[] = {"uknc", "pk8000", "korvet", "zs256", "bk"};
+static const unsigned char supported_ids[] = {5, 7, 8, 9, 10, 11};
+static const char *const protocols[] = {"uknc", "pk8000", "korvet", "zs256", "bk", "evo"};
 
 static int fail(const char *why) {
   snprintf(error_text, sizeof(error_text), "%s", why);
@@ -335,12 +335,12 @@ int companion_parse_profile(const char *json, unsigned char id) {
     p.about[i] = v->valuestring;
   }
   cJSON_ArrayForEach(v,p.resources) if(!relative(v,119)) goto invalid;
-  const char *const required[][4] = {{"sav_base","sav_base_alt","sav_disk",NULL}, {NULL}, {"extrom",NULL}, {"rom","gs_rom",NULL}, {"az_ini","az_eeprom",NULL}};
+  const char *const required[][6] = {{"sav_base","sav_base_alt","sav_disk",NULL}, {NULL}, {"extrom",NULL}, {"rom","gs_rom",NULL}, {"az_ini","az_eeprom",NULL}, {"rom","gs_rom","ngs_rom","cmos","sd",NULL}};
   for(int i = 0; required[which][i]; i++) if(!get(p.resources,required[which][i])) goto invalid;
   cJSON_ArrayForEach(v,p.reset)
     if(strlen(v->string) != 1 || var_index(&p,v->string[0]) < 0 || !number(v,1,3)) goto invalid;
   p.extra = cJSON_IsTrue(extra);
-  if(p.extra && id != CORE_ID_ZS256) goto invalid;
+  if(p.extra && id != CORE_ID_ZS256 && id != CORE_ID_EVO) goto invalid;
   release(&active);
   active = p;
   for(int i = 0; i < active.nforms; i++) compile_form(&active,i,0);

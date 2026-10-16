@@ -33,6 +33,7 @@ struct bflb_device_s *gpio;
 
 #include "sysctrl.h"
 #include "ultima.h"
+#include "evo.h"
 
 // queue to forward key press events from USB to OSD
 QueueHandle_t xQueue = NULL;
@@ -99,8 +100,16 @@ static void osd_task(void *parms) {
     
     // printf("spi tc done count:%d\r\n", spi_tc_done_count);
     long cmd;
-    xQueueReceive( xQueue, &cmd, 0xffffffffUL);
-    menu_do(menu, cmd);
+    if(xQueueReceive(xQueue, &cmd, core_id == CORE_ID_EVO ? pdMS_TO_TICKS(1000) : portMAX_DELAY) == pdTRUE)
+      menu_do(menu, cmd);
+    // OSD animation traffic also wakes this task, so poll by time rather
+    // than waiting for a quiet queue to save the Evo CMOS.
+    static TickType_t last_cmos_poll;
+    TickType_t now = xTaskGetTickCount();
+    if(core_id == CORE_ID_EVO && now - last_cmos_poll >= pdMS_TO_TICKS(1000)) {
+      evo_poll();
+      last_cmos_poll = now;
+    }
   }
 }
 

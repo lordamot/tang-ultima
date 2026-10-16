@@ -6,7 +6,8 @@ static const char companion_default_0[] =
   ",\"settings\":\"korvet.ini\",\"bitstream\":\"cores/korvet.bin\",\"profile\":\"cores/korvet.json\"},{\"id\":9,\"name"
   "\":\"ZS-256\",\"dir\":\"zs256\",\"settings\":\"zs256.ini\",\"bitstream\":\"cores/zs256.bin\",\"profile\":\"cores/zs256"
   ".json\"},{\"id\":10,\"name\":\"BK-0011M\",\"dir\":\"bk\",\"settings\":\"bk.ini\",\"bitstream\":\"cores/bk.bin\",\"profil"
-  "e\":\"cores/bk.json\"}]}";
+  "e\":\"cores/bk.json\"},{\"id\":11,\"name\":\"ZX Evolution TS-Conf\",\"dir\":\"evo\",\"settings\":\"evo.ini\",\"bitstre"
+  "am\":\"cores/evo.bin\",\"profile\":\"cores/evo.json\"}]}";
 static const char companion_default_1[] =
   "{\"version\":1,\"id\":5,\"protocol\":\"uknc\",\"source\":\"tang-uknc\",\"forms\":[{\"title\":\"UKNC Nano\",\"parent\":nu"
   "ll,\"entries\":[{\"type\":\"file\",\"label\":\"FDD0:\",\"slot\":0,\"extensions\":[\"dsk\"]},{\"type\":\"file\",\"label\":\""
@@ -189,11 +190,46 @@ static const char companion_default_5[] =
   "package is his.  K1801VM1: Vslav's model in Sorgelig's MiSTer core; YM2149: MikeJ, Sorgelig\",\"Built "
   "on ZS-256, Korvet, PK8000 and UKNC Nano (Alexey Gurov) and MiSTeryNano (Till Harbaum)\"],\"assets\":[{\""
   "source\":\"soft/azbk\",\"destination\":\".\"}]}";
+static const char companion_default_6[] =
+  "{\"version\":1,\"id\":11,\"protocol\":\"evo\",\"source\":\"retro-tang-evo-tsconf\",\"forms\":[{\"title\":\"Evo Nano\","
+  "\"parent\":null,\"entries\":[{\"type\":\"file\",\"label\":\"Floppy A:\",\"slot\":0,\"extensions\":[\"trd\"]},{\"type\":\""
+  "file\",\"label\":\"Floppy B:\",\"slot\":1,\"extensions\":[\"trd\"]},{\"type\":\"file\",\"label\":\"Floppy C:\",\"slot\":2"
+  ",\"extensions\":[\"trd\"]},{\"type\":\"file\",\"label\":\"Floppy D:\",\"slot\":3,\"extensions\":[\"trd\"]},{\"type\":\"fi"
+  "le\",\"label\":\"HDD:\",\"slot\":4,\"extensions\":[\"img\",\"hdd\"]},{\"type\":\"button\",\"label\":\"Reset\",\"action\":\"R"
+  "\"},{\"type\":\"button\",\"label\":\"NMI\",\"action\":\"n\"},{\"type\":\"submenu\",\"label\":\"Hardware\",\"form\":1},{\"typ"
+  "e\":\"submenu\",\"label\":\"Core\",\"form\":2},{\"type\":\"text\",\"label\":\"About\"},{\"type\":\"text\",\"label\":\"Debug\""
+  "},{\"type\":\"button\",\"label\":\"Save settings\",\"action\":\"S\"}]},{\"title\":\"Hardware\",\"parent\":0,\"entries\":"
+  "[{\"type\":\"file\",\"label\":\"ROM:\",\"slot\":5,\"extensions\":[\"rom\"]},{\"type\":\"list\",\"label\":\"Raster:\",\"opti"
+  "ons\":[\"Pentagon\",\"60 Hz\",\"48K\",\"128K\"],\"variable\":\"r\"},{\"type\":\"list\",\"label\":\"TurboSound:\",\"options"
+  "\":[\"Off\",\"On\"],\"variable\":\"y\"},{\"type\":\"list\",\"label\":\"General Sound:\",\"options\":[\"Off\",\"512 KB\",\"2 "
+  "MB\",\"NGS 3.5M\"],\"variable\":\"g\"},{\"type\":\"list\",\"label\":\"Covox:\",\"options\":[\"Off\",\"On\"],\"variable\":\"c"
+  "\"},{\"type\":\"list\",\"label\":\"Sound out:\",\"options\":[\"Beeper\",\"Tape out\"],\"variable\":\"b\"},{\"type\":\"list"
+  "\",\"label\":\"Floppy:\",\"options\":[\"Off\",\"On\"],\"variable\":\"f\"},{\"type\":\"list\",\"label\":\"AY stereo:\",\"opti"
+  "ons\":[\"ABC\",\"ACB\",\"Mono\"],\"variable\":\"s\"},{\"type\":\"list\",\"label\":\"Joystick:\",\"options\":[\"Off\",\"Kemps"
+  "ton\"],\"variable\":\"j\"},{\"type\":\"list\",\"label\":\"Mouse:\",\"options\":[\"Off\",\"Kempston\"],\"variable\":\"M\"},{"
+  "\"type\":\"list\",\"label\":\"Volume:\",\"options\":[\"Mute\",\"33%\",\"66%\",\"100%\"],\"variable\":\"A\"},{\"type\":\"list\""
+  ",\"label\":\"IDE:\",\"options\":[\"Off\",\"On\"],\"variable\":\"i\"},{\"type\":\"list\",\"label\":\"Floppy A prot.:\",\"opt"
+  "ions\":[\"Off\",\"On\"],\"variable\":\"p\"},{\"type\":\"list\",\"label\":\"Floppy B prot.:\",\"options\":[\"Off\",\"On\"],\""
+  "variable\":\"q\"},{\"type\":\"list\",\"label\":\"Floppy C prot.:\",\"options\":[\"Off\",\"On\"],\"variable\":\"k\"},{\"typ"
+  "e\":\"list\",\"label\":\"Floppy D prot.:\",\"options\":[\"Off\",\"On\"],\"variable\":\"l\"}]},{\"title\":\"Core\",\"parent"
+  "\":0,\"entries\":[{\"type\":\"cores\"}]}],\"defaults\":{\"A\":1,\"r\":0,\"y\":1,\"g\":2,\"c\":1,\"b\":0,\"s\":0,\"j\":1,\"M\":1"
+  ",\"f\":1,\"i\":1,\"p\":0,\"q\":0,\"k\":0,\"l\":0},\"keyboard\":{\"driver\":\"ps2\",\"keymap\":[0,0,0,0,6,40,4,8,13,9,10,"
+  "35,28,34,33,32,38,39,27,26,11,14,7,15,29,5,12,3,30,2,16,17,18,19,20,25,24,23,22,21,31,76,61,121,36,1"
+  "14,112,0,0,0,0,107,104,0,119,118,85,57,0,0,0,0,0,0,0,0,0,0,0,0,0,0,76,62,56,58,61,0,59,63,60,65,64,0"
+  ",85,120,114,113,31,16,17,18,19,20,25,24,23,22,21,118,0],\"modifiers\":[37,1,37,0,37,1,37,0]},\"drive_na"
+  "mes\":[\"A\",\"B\",\"C\",\"D\",\"HDD\"],\"resources\":{\"rom\":\"zxevo.rom\",\"gs_rom\":\"gs105b.rom\",\"ngs_rom\":\"gs108n."
+  "rom\",\"cmos\":\"cmos.bin\",\"sd\":\"SD\"},\"save_extra_slot\":true,\"reset_on_change\":{},\"about\":[\"Evo Nano - Z"
+  "X Evolution TS-Conf on Tang Nano 20K\",\"TS-Conf: NedoPC (GPLv3). Z80: tv80 (MIT).\",\"TurboSound and Ge"
+  "neral Sound; virtual SD rooted in this core folder.\",\"Physical-board video corruption remains under "
+  "investigation.\"],\"assets\":[{\"source\":\"soft/evo/zxevo.rom\",\"resource\":\"rom\"},{\"source\":\"soft/evo/gs10"
+  "5b.rom\",\"resource\":\"gs_rom\"},{\"source\":\"soft/evo/gs108n.rom\",\"resource\":\"ngs_rom\"},{\"source\":\"soft/e"
+  "vo/SD\",\"resource\":\"sd\"}]}";
 static const char *const companion_defaults[] = {
   companion_default_0,
   companion_default_1,
   companion_default_2,
   companion_default_3,
   companion_default_4,
-  companion_default_5
+  companion_default_5,
+  companion_default_6
 };

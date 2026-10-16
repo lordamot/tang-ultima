@@ -85,7 +85,7 @@ PYTHON   := python3
 # .claude/docs/progress.md - so the ring, the jump addresses and the
 # three-slot image went with it.
 #-----------------------------------------------------------------------
-CORES        := uknc pk8000 korvet zs256 bk
+CORES        := uknc pk8000 korvet zs256 bk evo
 # what `make flash-image` puts at address 0, i.e. what a fresh board is
 DEFAULT_CORE ?= uknc
 
@@ -103,6 +103,9 @@ NAME_zs256   := zs256
 
 DIR_bk       := $(ROOT)/../tang-bk-epta
 NAME_bk      := bk
+
+DIR_evo      := $(ROOT)/../retro-tang-evo-tsconf
+NAME_evo     := evo
 
 LOADING_RATE ?=
 TCLOPTS      := $(if $(LOADING_RATE),--loading-rate $(LOADING_RATE),)
@@ -236,7 +239,7 @@ storage-test: config-defaults
 	$(CC) $(HOST_OPT) -g -w -DSDL \
 	  -Imnano -Imnano/u8g2/csrc -I$(FATFS_SRC) -I$(CJSON_SRC) \
 	  -o $(BUILD)/config/storage_test mnano/companion_storage_test.c \
-	  mnano/companion.c mnano/ultima.c mnano/rt11sav.c mnano/romload.c mnano/extrom.c mnano/azbk.c \
+	  mnano/companion.c mnano/ultima.c mnano/rt11sav.c mnano/romload.c mnano/extrom.c mnano/azbk.c mnano/evo.c mnano/vsd.c \
 	  $(CJSON_SRC)/cJSON.c $(FATFS_SRC)/ff.c $(FATFS_SRC)/ffunicode.c
 	$(BUILD)/config/storage_test
 
@@ -512,3 +515,9 @@ flash-mcu-onboard-restore:
 
 clean:
 	rm -rf $(BUILD) mnano/build mnano/build_out onboard/build
+
+.PHONY: vsd-test
+vsd-test:
+	@mkdir -p $(BUILD)/config
+	$(CC) $(HOST_OPT) -w -DSDL -Imnano -I$(FATFS_SRC) -o $(BUILD)/config/vsd_test mnano/vsd_test.c mnano/vsd.c $(FATFS_SRC)/ff.c $(FATFS_SRC)/ffunicode.c
+	$(BUILD)/config/vsd_test

@@ -757,8 +757,11 @@ int sdc_init(spi_t *p_spi) {
 
 // use a locking mechanism to make sure the file system isn't modified
 // by two threads at the same time
+unsigned long sdc_locks = 0;
+
 void sdc_lock(void) {
   xSemaphoreTake(sdc_sem, 0xffffffffUL); // wait forever
+  sdc_locks++;
 }
 
 void sdc_unlock(void) {

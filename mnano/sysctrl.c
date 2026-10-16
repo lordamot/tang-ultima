@@ -9,12 +9,13 @@
 #include "bflb_mtimer.h"
 #include "extrom.h"
 #include "azbk.h"
+#include "evo.h"
 #include "sdc.h"
 
 unsigned char core_id = 0;
 
 static const char *core_names[] = {
-  "<unset>", "Atari ST", "C64", "UNEON", "AMIGA", "UKNC", "AGAT9", "PK8000", "Korvet", "ZS-256", "BK"
+  "<unset>", "Atari ST", "C64", "UNEON", "AMIGA", "UKNC", "AGAT9", "PK8000", "Korvet", "ZS-256", "BK", "ZX Evolution TS-Conf"
 };
 
 static void sys_begin(spi_t *spi, unsigned char cmd) {
@@ -34,7 +35,7 @@ int sys_status_is_valid(spi_t *spi) {
 
   if((b0 == 0x5c) && (b1 == 0x42)) {
     printf("Core ID: %02x\r\n", core_id);
-    if(core_id < 11) printf("Core: %s\r\n", core_names[core_id]);
+    if(core_id < sizeof(core_names)/sizeof(core_names[0])) printf("Core: %s\r\n", core_names[core_id]);
 
     // coldboot status equals core_id on cores not supporting cold
     // boot status
@@ -249,7 +250,8 @@ void sys_handle_interrupts(unsigned char pending) {
     sdc_handle_event();
 
   if(pending & 0x10) {  // irq 4 = the ExtROM channel (Korvet), the AZ controller (BK, azctrl.v)
-    if(core_id == CORE_ID_BK) az_handle_event();
+    if(core_id == CORE_ID_EVO) evo_handle_event();
+    else if(core_id == CORE_ID_BK) az_handle_event();
     else                      extrom_handle_event();
   }
 }

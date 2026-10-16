@@ -71,6 +71,21 @@
         "mnano/bk.c": "acb55841e61bac5ca20960dd9c294076b7e1c8b832f4dca6bfa9a73b8200bed1",
         "mnano/bk.h": "6274b33adfa73590df4fd409674b360e1e3d6275bd5783b5e7332a652df40b16"
       }
+    },
+    "retro-tang-evo-tsconf": {
+      "revision": "f26a604cc897fc41f2df064d5121bb9c8e435e9e",
+      "version": "0.1.9 alpha",
+      "files": {
+        "mnano/menu.c": "94b946b63bbadba7de1dabdbf93640a6a6a4ea301ca5c7c070a03b83171c619b",
+        "mnano/usb_host.c": "450480c565a4c04c468c185ca5b89834d074023c4d85f5ed13d01ce5cd9425db",
+        "mnano/sdc.c": "0248c4dc2fd99d0e6ba1fcb314a7881b85807ed2a1178427397c89b1619f66f1",
+        "mnano/sysctrl.c": "c08af0659cd4a8f343361da3cc37feaf89986ce70014f2c5b31d13c4fa0e5de1",
+        "mnano/sysctrl.h": "128f43feea7379684ad14b9414146cd44231c6c427679834c0e4e494a1ec0053",
+        "mnano/evo.c": "28282254163bdc44f082819cda802ba502e19e649a1cc4421103d21e243959d4",
+        "mnano/evo.h": "9c334547310795f2da1e825a0e1f0d48e8c4bcaba154c7e0709d7f168c8bf5fb",
+        "mnano/vsd.c": "aefb2432e99f45642ffd652a645e8635c7c61051d403d193230f70915765ded1",
+        "mnano/vsd.h": "033dd8f2e8e75a5b85f4050dacf48eda8a4192a03dcfe045b1d067ad3808e4bd"
+      }
     }
   }
 }

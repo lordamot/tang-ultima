@@ -39,7 +39,7 @@ typedef struct {
 
 // the five, in the Makefile's CORES order
 extern ultima_core_t ultima_cores[];
-#define ULTIMA_CORES 5
+#define ULTIMA_CORES 6
 
 // where the installed core is recorded, on the card's root
 #define ULTIMA_INI   CARD_MOUNTPOINT "/ultima.ini"

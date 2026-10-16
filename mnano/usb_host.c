@@ -97,6 +97,7 @@ USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t xbox_buffer[CONFIG_USBHOST_MAX_XB
 #include "amiga.h"
 #include "agat9.h"
 #include "companion.h"
+#include "evo.h"
 #include "ultima.h"
 #include "bk.h"
 
@@ -283,6 +284,7 @@ void kbd_parse(spi_t *spi, hid_report_t *report, struct hid_kbd_state_S *state,
   // presses itself and needs the releases, see kbd_tx_uknc)
   if((buffer[0] != state->last_report[0]) &&
      (!osd_is_visible(usb_config.osd) || core_id == CORE_ID_UKNC)) {
+    if(core_id == CORE_ID_EVO) evo_mods(spi, state->last_report[0], buffer[0]);
     for(int i=0;i<8;i++) {
       if(core_id == CORE_ID_BK) {
         // the BK: РУС, ЛАТ, СУ and АР2 are modifiers with their own codes (bk.c)
@@ -323,7 +325,7 @@ void kbd_parse(spi_t *spi, hid_report_t *report, struct hid_kbd_state_S *state,
       for(int j=0;j<6;j++) if(buffer[2+j] == state->last_report[2+i]) still = 1;
       if(!still) {
 	if(core_id == CORE_ID_BK) kbd_tx_bk(spi, state->last_report[2+i], buffer[0], 0);
-	else if(core_keymap()) kbd_key(spi, state->last_report[2+i], core_keymap()[state->last_report[2+i]], 0);
+	else if(!(core_id == CORE_ID_EVO && evo_key(spi, state->last_report[2+i], 0)) && core_keymap()) kbd_key(spi, state->last_report[2+i], core_keymap()[state->last_report[2+i]], 0);
       }
     }
 
@@ -347,7 +349,7 @@ void kbd_parse(spi_t *spi, hid_report_t *report, struct hid_kbd_state_S *state,
 	else {
 	  if(!osd_is_visible(usb_config.osd)) {
 	    if(core_id == CORE_ID_BK) kbd_tx_bk(spi, buffer[2+i], buffer[0], 1);
-	    else if(core_keymap()) kbd_key(spi, buffer[2+i], core_keymap()[buffer[2+i]], 1);
+	    else if(!(core_id == CORE_ID_EVO && evo_key(spi, buffer[2+i], 1)) && core_keymap()) kbd_key(spi, buffer[2+i], core_keymap()[buffer[2+i]], 1);
 	  }
 	  else {
 	    // check if cursor up/down or space has been pressed

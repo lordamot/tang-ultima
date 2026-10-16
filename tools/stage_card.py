@@ -11,7 +11,7 @@ import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / 'build/card'
-SIBLINGS = {'tang-uknc', 'tang-pk8000', 'tang-korvet', 'tang-zs256', 'tang-bk-epta'}
+SIBLINGS = {'tang-uknc', 'tang-pk8000', 'tang-korvet', 'tang-zs256', 'tang-bk-epta', 'retro-tang-evo-tsconf'}
 
 
 def below(root, relative):
@@ -40,7 +40,7 @@ def collect(config_only=False):
         directories.add(below(machine, core['settings']).parent)
         for key, name in profile['resources'].items():
             resource = below(machine, name)
-            directories.add(resource if key == 'extrom' else resource.parent)
+            directories.add(resource if key in ('extrom', 'sd') else resource.parent)
         for asset in profile.get('assets', []):
             # glob accepts relative patterns only. Resolve every match again,
             # including symlinks, before it can become a copy source.

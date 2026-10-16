@@ -16,7 +16,8 @@ BACKENDS = {'uknc': ['rt11sav.c', 'rt11sav.h', 'uknc.h'],
             'pk8000': ['bas.c', 'bas.h', 'pk8000.h'],
             'korvet': ['extrom.c', 'extrom.h', 'korvet.h'],
             'zs256': ['romload.c', 'romload.h', 'zs256.h'],
-            'bk': ['azbk.c', 'azbk.h', 'bk.c', 'bk.h']}
+            'bk': ['azbk.c', 'azbk.h', 'bk.c', 'bk.h'],
+            'evo': ['evo.c', 'evo.h', 'vsd.c', 'vsd.h']}
 
 
 def snapshot():
@@ -29,7 +30,7 @@ def snapshot():
             raise FileNotFoundError(repo)
         files = ['menu.c', 'usb_host.c', 'sdc.c', 'sysctrl.c', 'sysctrl.h'] + BACKENDS[profile['protocol']]
         records[profile['source']] = {
-            'revision': subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip(),
+            'revision': subprocess.run(['git', '-C', str(repo), 'rev-parse', '--verify', 'HEAD'], capture_output=True, text=True).stdout.strip() or 'uncommitted',
             'version': (repo / 'VERSION').read_text().strip(),
             'files': {f'mnano/{name}': hashlib.sha256((repo / 'mnano' / name).read_bytes()).hexdigest()
                       for name in files},
@@ -56,7 +57,7 @@ if __name__ == '__main__':
             print(f'{repo}: {data["version"]}, {data["revision"][:12]}')
         if changed:
             raise SystemExit('Companion sources changed; review before updating the shared firmware:\n' + '\n'.join(changed))
-        print('siblings-check: all five source snapshots match')
+        print('siblings-check: all source snapshots match')
         builds = ROOT / 'config/sibling-builds.lock.json'
         if builds.exists():
             entrypoints = json.loads(builds.read_text())['siblings']

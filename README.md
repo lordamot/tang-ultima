@@ -1,5 +1,12 @@
 # Tang Ultima
 
+ZX Evolution **TS-Conf** is now the sixth core, built from
+`../retro-tang-evo-tsconf`: `make core-evo`, then `make fw` and
+`make card-stage`. The common Core menu includes it; files use `/evo/`.
+See [Evo integration and validation](config/EVO.md). Host checks pass;
+Evo's existing physical-board video corruption remains unresolved.
+
+
 Пять советских компьютеров в одном **Tang Nano 20K**: **УКНЦ**
 (МС0511), **ПК8000 «Сура»**, **ПК8020 «Корвет»**, **Scorpion ZS-256
 Turbo+** и **БК-0011М** с контроллером AZBK - и пункт меню, который

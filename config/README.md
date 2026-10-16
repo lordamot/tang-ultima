@@ -1,3 +1,13 @@
+# Evo TS-Conf integration
+
+ZX Evolution TS-Conf is the sixth compiled protocol (FPGA ID 11), sourced
+from `../retro-tang-evo-tsconf`. Its catalog entry and `cores/evo.json`
+provide the Core menu entry, defaults, keyboard matrix and asset paths.
+See [EVO.md](EVO.md) for validation and the remaining board limitation.
+The five previously integrated siblings still delegate firmware builds here;
+Evo's standalone build remains separate. Shared releases synchronize Ultima's
+firmware and those five existing sibling binary copies.
+
 # Shared BL616 companion configuration
 
 Build the dock firmware once in `tang-ultima` and use that same binary with
@@ -61,8 +71,8 @@ the dock UART, and replaced by its embedded default. There is no live reload.
 
 ## Catalog: companion.json
 
-`version` is the schema version, currently `1`. `cores` has these five entries
-in order: IDs `5`, `7`, `8`, `9`, `10`. Each entry has:
+`version` is the schema version, currently `1`. `cores` has these six entries
+in order: IDs `5`, `7`, `8`, `9`, `10`, `11`. Each entry has:
 
 | Field | Meaning |
 | --- | --- |
@@ -94,14 +104,14 @@ that need review. After merging those changes, record a fresh snapshot with
 
 | Field | Meaning |
 | --- | --- |
-| `version`, `id`, `protocol` | Schema `1`, FPGA ID, compiled protocol name: `uknc`, `pk8000`, `korvet`, `zs256`, `bk` |
+| `version`, `id`, `protocol` | Schema `1`, FPGA ID, compiled protocol name: `uknc`, `pk8000`, `korvet`, `zs256`, `bk`, `evo` |
 | `source` | Sibling repository used by the asset collector |
 | `forms` | Menu forms, addressed by array index; main form is index 0 |
 | `defaults` | Map of SYS variable letters to initial byte values |
 | `keyboard` | `driver`, numeric HID-indexed `keymap`, eight `modifiers` |
 | `drive_names` | Names for the five image slots |
 | `resources` | File/directory names relative to the catalog's machine directory |
-| `save_extra_slot` | Preserve browse slot 5 in settings; true for ZS ROM selection |
+| `save_extra_slot` | Preserve browse slot 5 in settings; true for ZS and Evo ROM selection |
 | `reset_on_change` | Variable letter to reset value, followed by `R=0` |
 | `about` | Paragraphs in the About page |
 | `assets` | Host staging plan: sibling `source` glob and destination directory or `resource` key |

@@ -1,5 +1,15 @@
 # Changelog
 
+## 17 October 2026 — Evo TS-Conf integration
+
+- Add FPGA ID 11, the sixth Core menu entry, JSON profile and card assets.
+- Integrate Evo ROM/CMOS, virtual SD IRQ, keyboard and General Sound hooks.
+- Build and time the Evo bitstream; build the shared firmware. Add Evo to
+  config, menu and real FatFs storage checks; import the virtual SD regression.
+- Physical-board video corruption in the source core remains unresolved;
+  this integration has host validation only. See `config/EVO.md`.
+
+
 ## Unreleased
 
 - The USB mouse on a combined receiver (Logitech 046d:c534, keyboard and

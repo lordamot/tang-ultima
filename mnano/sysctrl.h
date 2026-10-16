@@ -22,6 +22,7 @@
 #define CORE_ID_KORVET   0x08
 #define CORE_ID_ZS256    0x09
 #define CORE_ID_BK       0x0A   // BK Nano: the БК-0011М with an AZBK controller (../tang-bk-epta)
+#define CORE_ID_EVO      0x0B   // ZX Evolution TS-Conf
 #define CORE_ID_VIC20    0x10
 
 extern unsigned char core_id;

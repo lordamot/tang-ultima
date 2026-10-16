@@ -9,6 +9,8 @@
 #include "sysctrl.h"
 #include "rt11sav.h"
 #include "romload.h"
+#include "evo.h"
+#include "vsd.h"
 #include "azbk.h"
 #include "extrom.h"
 #include "diskio.h"
@@ -22,7 +24,7 @@ typedef void *SemaphoreHandle_t;
 #include "sdc.c"
 
 unsigned char core_id = CORE_ID_UKNC;
-#define SECTORS 32768
+#define SECTORS 262144
 static unsigned char *disk;
 DSTATUS disk_initialize(BYTE p) { (void)p; return 0; }
 DSTATUS disk_status(BYTE p) { (void)p; return 0; }
@@ -46,18 +48,28 @@ DRESULT disk_ioctl(BYTE p, BYTE cmd, void *b) {
 }
 void disk_driver_callback_init(uint8_t p, FATFS_DiskioDriverTypeDef *d) { (void)p; (void)d; }
 void vTaskDelay(int ms) { (void)ms; }
-void spi_begin(spi_t *p) { (void)p; }
+static unsigned char spi_bytes[4096];
+static int spi_count;
+void spi_begin(spi_t *p) { (void)p; spi_count = 0; }
 void spi_end(spi_t *p) { (void)p; }
-unsigned char spi_tx_u08(spi_t *p, unsigned char v) { (void)p; (void)v; return 0; }
+unsigned char spi_tx_u08(spi_t *p, unsigned char v) {
+  (void)p; assert(spi_count < sizeof(spi_bytes)); spi_bytes[spi_count++] = v; return 0;
+}
 void sys_set_rgb(spi_t *p, unsigned long rgb) { (void)p; (void)rgb; }
 void sys_handle_interrupts(unsigned char v) { (void)v; }
 unsigned char sys_irq_ctrl(spi_t *p, unsigned char v) { (void)p; (void)v; return 0; }
 void hid_handle_event(void) {}
 static int profrom = -1;
 void sys_set_val(spi_t *p, char id, uint8_t value) { (void)p; if(id == 'P') profrom = value; }
-static unsigned long rom_bytes, gs_bytes;
+static unsigned long rom_bytes, gs_bytes, evo_bytes, evo_gs_bytes;
 void sys_poke24(spi_t *p, unsigned long addr, const unsigned char *buf, int len) {
   (void)p; (void)buf;
+  if(core_id == CORE_ID_EVO) {
+    if(addr >= EVO_ADDR_ROM && addr < EVO_ADDR_ROM + EVO_MAX_ROM) evo_bytes += len;
+    else if(addr >= EVO_ADDR_GSROM && addr < EVO_ADDR_GSROM + EVO_MAX_GSROM) evo_gs_bytes += len;
+    else assert(0);
+    return;
+  }
   if(addr >= ROM_ADDR_ZS && addr < ROM_ADDR_ZS+ROM_MAX_ZS) rom_bytes += len;
   else if(addr >= ROM_ADDR_GS && addr < ROM_ADDR_GS+ROM_MAX_GS) gs_bytes += len;
   else assert(0);
@@ -102,7 +114,7 @@ static void replace(cJSON *p, const char *key, const char *s) {
 int main(void) {
   disk = calloc(SECTORS,512); assert(disk);
   BYTE work[4096];
-  MKFS_PARM options = {.fmt = FM_FAT | FM_SFD};
+  MKFS_PARM options = {.fmt = FM_FAT32 | FM_SFD, .au_size = 512};
   assert(f_mkfs("/sd",&options,work,sizeof(work)) == FR_OK);
   assert(f_mount(&fs,"/sd",1) == FR_OK);
   assert(f_mkdir("/sd/cores") == FR_OK);
@@ -211,6 +223,44 @@ int main(void) {
   assert(!strcmp(az_unit_path(0),"/sd/bk/DISKS/A.IMG"));
   assert(az_unit_blocks(0) == 8);
   assert(az_set_unit(0,"../bad.img") < 0);
+
+  // Evo uses real ROM/CMOS/VSD code on the same FAT32 card, with a
+  // relocated machine directory and resource names supplied by card JSON.
+  catalog = host_json("config/companion.json");
+  replace(cJSON_GetArrayItem(item(catalog,"cores"),5),"dir","machines/evo");
+  char *catalog_text = cJSON_PrintUnformatted(catalog);
+  assert(!companion_parse_catalog(catalog_text)); free(catalog_text); cJSON_Delete(catalog);
+  core_id = CORE_ID_EVO; ultima_boot(NULL);
+  profile = host_json("config/cores/evo.json");
+  replace(item(profile,"resources"),"rom","ROM/custom.rom");
+  replace(item(profile,"resources"),"gs_rom","ROM/gs.rom");
+  replace(item(profile,"resources"),"ngs_rom","ROM/ngs.rom");
+  replace(item(profile,"resources"),"cmos","state.bin");
+  replace(item(profile,"resources"),"sd","FILES");
+  put_json("/sd/cores/evo.json",profile);
+  assert(!companion_select(core_id));
+  assert(f_mkdir("/sd/machines/evo/ROM") == FR_OK);
+  copy_file("../retro-tang-evo-tsconf/soft/evo/zxevo.rom","/sd/machines/evo/ROM/custom.rom");
+  copy_file("../retro-tang-evo-tsconf/soft/evo/gs105b.rom","/sd/machines/evo/ROM/gs.rom");
+  copy_file("../retro-tang-evo-tsconf/soft/evo/gs108n.rom","/sd/machines/evo/ROM/ngs.rom");
+  evo_value(NULL,'g',2);
+  evo_boot((spi_t *)1,NULL);
+  assert(evo_rom_size == 524288 && evo_gsrom_size == 32768);
+  assert(evo_bytes == 524288 && evo_gs_bytes == 32768);
+  assert(f_stat("/sd/machines/evo/state.bin",&info) == FR_OK && info.fsize == 512);
+  assert(f_stat("/sd/machines/evo/FILES",&info) == FR_OK && (info.fattrib & AM_DIR));
+  assert(vsd_sectors() && vsd_info.root);
+  evo_value(NULL,'g',3); assert(evo_gs_bytes == 65536);
+  evo_value(NULL,'g',3); assert(evo_gs_bytes == 65536); // unchanged setting needs no upload
+  evo_value(NULL,'g',2); assert(evo_gs_bytes == 98304);
+  evo_key(NULL,4,1); // A -> SYS GLUK PS/2 make code
+  assert(spi_count == 4 && spi_bytes[1] == SPI_SYS_GLUK && spi_bytes[2] == 4 && spi_bytes[3] == 0x1c);
+  evo_key(NULL,4,0); assert(spi_bytes[3] == 0x1c);
+  evo_mods(NULL,0,2); assert(spi_bytes[3] == 0x12); // left shift
+  assert(evo_key(NULL,0x44,1) == 1); // F11 reset is consumed
+  assert(evo_key(NULL,0x46,1) == 1); // Print Screen NMI is consumed
+  evo_poll(); // no changed flag from the SPI boundary, no filesystem save
+  puts("storage-test: Evo relocated ROMs/CMOS/SD, GS reload and keyboard protocol passed");
 
   puts("storage-test: JSON on FAT, relocated SAV output, SD mount/eject, fragmented maps, fallback, ZS ROM, ExtROM and BK paths passed");
   free(disk); return 0;

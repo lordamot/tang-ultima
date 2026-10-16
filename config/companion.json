@@ -40,6 +40,14 @@
       "settings": "bk.ini",
       "bitstream": "cores/bk.bin",
       "profile": "cores/bk.json"
+    },
+    {
+      "id": 11,
+      "name": "ZX Evolution TS-Conf",
+      "dir": "evo",
+      "settings": "evo.ini",
+      "bitstream": "cores/evo.bin",
+      "profile": "cores/evo.json"
     }
   ]
 }

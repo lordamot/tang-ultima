@@ -88,6 +88,12 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build/config') as tmp:
         run(['path', '/sd/bk', path, 256], False)
     run(['path', '/sd/uknc', 'disk.dsk', 8], False)
 
+    evo = json.loads((ROOT / 'config/cores/evo.json').read_text())
+    missing = copy.deepcopy(evo)
+    del missing['resources']['sd']
+    document(['profile', 11], missing, False)
+    run(['boot', 11], contains='Evo Nano,;')
+
     # The same executable loads a customized card file and falls back when
     # that file is malformed. No recompile separates these two runs.
     card = Path(tmp) / 'card'

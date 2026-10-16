@@ -41,6 +41,8 @@
 #include "rt11sav.h"
 #include "bas.h"
 #include "romload.h"
+#include "evo.h"
+#include "vsd.h"
 #include "azbk.h"
 #include "ultima.h"
 #include "menu.h"
@@ -57,7 +59,13 @@ static int extrom_inits;
 void extrom_init(spi_t *spi) { (void)spi; extrom_inits++; }
 static int bas_runs;
 int bas_run(spi_t *spi, const char *path) { (void)spi; (void)path; bas_runs++; return 0; }
-static int rom_boots, rom_selects;
+static int rom_boots, rom_selects, evo_boots, evo_boot_reset;
+void evo_boot(spi_t *spi, const char *rom);
+void evo_rom_select(spi_t *spi, const char *path) { rom_select(spi, path); }
+unsigned long evo_rom_size = 524288, evo_gsrom_size = 32768;
+vsd_info_t vsd_info;
+void evo_value(spi_t *spi, char id, int value) { (void)spi; (void)id; (void)value; }
+const char *evo_status(void) { return "host test"; }
 static char rom_selected[256];
 unsigned long rom_size_zs = 65536, rom_size_gs = 32768;
 void rom_boot(spi_t *spi) { (void)spi; rom_boots++; }
@@ -259,7 +267,7 @@ static void walk_entry(menu_t *menu, int form, int n, int depth) {
           name, readdir_exts ? readdir_exts : "(null)", (int)(strchr(exts, ';') - exts), exts);
     CHECK(set_n == sends, "%s: opening a selector sent %d values", name, set_n - sends);
     if(depth == 0 && n == 1) shot("selector");
-    if(slot == SDC_SLOT_EXTRA && core_id == CORE_ID_ZS256) {
+    if(slot == SDC_SLOT_EXTRA && (core_id == CORE_ID_ZS256 || core_id == CORE_ID_EVO)) {
       // the ROM slot: a file picked is not mounted, it goes to the core by
       // romload.c, from the core's own directory, and the OSD closes
       int opens = open_n;
@@ -435,9 +443,14 @@ static void check_core_form(menu_t *menu, int core_form) {
   CHECK(menu->form == 0 && menu->entry == n, "back from Core: form %d entry %d, expected 0/%d", menu->form, menu->entry, n);
 }
 
+void evo_boot(spi_t *spi, const char *rom) {
+  (void)spi; (void)rom; evo_boots++; evo_boot_reset = set_last('R');
+}
+
 static void run_core(unsigned char id, const char *prefix, const char *title, int core_form) {
   core_id = id;
   shot_prefix = prefix;
+  evo_boots = 0; evo_boot_reset = -1;
   set_n = 0; open_n = 0; extrom_inits = 0; bas_runs = 0; rom_boots = 0;
   az_boots = 0; az_sets = 0; az_set_unit_last = -1; az_boot_r_count = az_boot_r_last = -1;
   for(int i=0;i<=MAX_DRIVES;i++) { free(cwd[i]); cwd[i] = NULL; free(image_name[i]); image_name[i] = NULL; }
@@ -459,6 +472,8 @@ static void run_core(unsigned char id, const char *prefix, const char *title, in
   CHECK(extrom_inits == (id == CORE_ID_KORVET), "extrom_init called %d times on core %02x", extrom_inits, id);
   CHECK(rom_boots == (id == CORE_ID_ZS256), "rom_boot called %d times on core %02x", rom_boots, id);
   CHECK(az_boots == (id == CORE_ID_BK), "az_boot called %d times on core %02x", az_boots, id);
+  CHECK(evo_boots == (id == CORE_ID_EVO), "Evo boot dispatch on %02x", id);
+  if(id == CORE_ID_EVO) CHECK(evo_boot_reset == 3, "Evo boot must run while held in reset");
   if(id == CORE_ID_BK) {
     CHECK(az_boot_r_count == 1 && az_boot_r_last == 3, "az_boot called with R sent %d times, last %d: expected once, 3 (the machine held)",
           az_boot_r_count, az_boot_r_last);
@@ -493,6 +508,7 @@ int main(int argc, char **argv) {
   run_core(CORE_ID_KORVET, "korvet", "Korvet Nano,;", 2);
   run_core(CORE_ID_ZS256,  "zs256",  "ZS-256 Nano,;", 2);
   run_core(CORE_ID_BK,     "bk",     "BK Nano,;",     2);
+  run_core(CORE_ID_EVO,    "evo",    "Evo Nano,;",    2);
 
   printf("menu-test: %d screens in %s, %d error(s)\n", shots, outdir, errors);
   return errors ? 1 : 0;

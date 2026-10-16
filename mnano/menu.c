@@ -12,6 +12,8 @@
 #include "rt11sav.h"
 #include "bas.h"
 #include "romload.h"
+#include "evo.h"
+#include "vsd.h"
 #include "azbk.h"
 #include "ultima.h"
 #include "companion.h"
@@ -729,8 +731,10 @@ menu_t *menu_init(u8g2_t *u8g2)
   companion_rebuild(&menu);
 
   // send initial values for all variables
-  for(int i=0;menu.vars[i].id;i++)
+  for(int i=0;menu.vars[i].id;i++) {
     sys_set_val(menu.osd->spi, menu.vars[i].id, menu.vars[i].value);
+    if(core_id == CORE_ID_EVO) evo_value(menu.osd->spi, menu.vars[i].id, menu.vars[i].value);
+  }
 
   // the ExtROM controller's brain: its phase-1 ROM into the core and its
   // mount table read, before the machine starts (Korvet)
@@ -745,6 +749,12 @@ menu_t *menu_init(u8g2_t *u8g2)
   // memory while its ROMs arrive, BK Nano 23 Sep 2026); then release it
   sys_set_val(menu.osd->spi, 'R', 3);
   if(core_id == CORE_ID_BK) menu_bk_boot(&menu);
+  if(core_id == CORE_ID_EVO) {
+    char path[COMPANION_PATH];
+    char *cwd = sdc_get_cwd(SDC_SLOT_ROM), *name = sdc_get_image_name(SDC_SLOT_ROM);
+    int selected = cwd && name && !companion_path(path, sizeof(path), cwd, name);
+    evo_boot(menu.osd->spi, selected ? path : NULL);
+  }
   sys_set_val(menu.osd->spi, 'R', 0);
 
   if(core_id == CORE_ID_C64||core_id == CORE_ID_VIC20) {  // c64 core, c1541 reset at power-up
@@ -836,6 +846,7 @@ static void menu_variable_set(menu_t *menu, const char *s, int val) {
 
       // also set this in the core
       sys_set_val(menu->osd->spi, id, val);
+      if(core_id == CORE_ID_EVO) evo_value(menu->osd->spi, id, val);
 
       // Rebuild conditional entries, including the UKNC HDD controller.
       companion_rebuild(menu);
@@ -1184,6 +1195,26 @@ static void menu_debug_open(menu_t *menu, const char *title) {
   static char line[10][40];
   static const char *paras[20];
   sys_get_debug(menu->osd->spi, d, sizeof(d));
+  if(core_id == CORE_ID_EVO) {
+    snprintf(line[0], sizeof(line[0]), "por %d init %d bist %d fail %d late %d",
+             d[1]&1, (d[1]>>1)&1, d[2]&1, (d[2]>>1)&1, (d[2]>>2)&1);
+    snprintf(line[1], sizeof(line[1]), "M1s %u  pc %04X  rst %u int %u",
+             d[16] | d[17]<<8, d[8] | d[9]<<8, d[18], d[19]);
+    snprintf(line[2], sizeof(line[2]), "halt %d ei %d turbo %d dos %d sh %d nmi %d",
+             !(d[11]>>1&1), d[11]&1, d[12]&3, (d[12]>>2)&1, (d[12]>>3)&1, (d[12]>>4)&1);
+    snprintf(line[3], sizeof(line[3]), "border %02X  7FFD %02X  FE %02X  raster %d",
+             d[13], d[14], d[15], d[7]>>2&3);
+    snprintf(line[4], sizeof(line[4]), "ROM %lu KB, GS ROM %lu KB", evo_rom_size / 1024, evo_gsrom_size / 1024);
+    snprintf(line[5], sizeof(line[5]), "SD files %d, reads %lu, writes %lu, err %lu",
+             vsd_info.files, (unsigned long)vsd_info.reads, (unsigned long)vsd_info.writes, (unsigned long)vsd_info.errors);
+    snprintf(line[6], sizeof(line[6]), "vsd busy %d int %d", (d[7]>>1)&1, d[7]&1);
+    snprintf(line[7], sizeof(line[7]), "IO port %04X  %s  n %u",
+             d[20] | d[21]<<8, d[23]&1 ? "wr" : "rd", d[22]);
+    for(int i=0;i<8;i++) paras[i] = line[i];
+    paras[8] = NULL;
+    menu_text_open(menu, title, paras);
+    return;
+  }
   if(core_id == CORE_ID_ZS256) {
     // top.v's dbg bus: 1 {init, por}, 2 {late, fail, done}, 3 the disks,
     // 5 the last opcode, 7:6 its address, 8 {halt_n, iff1}, 9 dos,
@@ -1438,13 +1469,14 @@ static void menu_fileselector(menu_t *menu, int event) {
 	menu_goto_form(menu, parent, fsel_entry);
 	osd_enable(menu->osd, OSD_INVISIBLE);
 	bas_run(menu->osd->spi, path);
-      } else if(drive == SDC_SLOT_EXTRA && core_id == CORE_ID_ZS256) {
-	// ZS-256: the ROM, remembered for the settings, sent into the core (romload.c)
+      } else if(drive == SDC_SLOT_EXTRA && (core_id == CORE_ID_ZS256 || core_id == CORE_ID_EVO)) {
+	// ZS-256 / Evo: remember the ROM and upload it instead of mounting an image.
 	char path[strlen(sdc_get_cwd(drive)) + strlen(entry->name) + 2];
 	sprintf(path, "%s/%s", sdc_get_cwd(drive), entry->name);
 	sdc_set_image_name(drive, entry->name);
 	menu_goto_form(menu, parent, fsel_entry);
-	rom_select(menu->osd->spi, path);
+	if(core_id == CORE_ID_EVO) evo_rom_select(menu->osd->spi, path);
+	else rom_select(menu->osd->spi, path);
 	osd_enable(menu->osd, OSD_INVISIBLE);
       } else if(core_id == CORE_ID_BK) {
 	// BK: an AZ unit - remembered for the settings, mounted through azbk.c

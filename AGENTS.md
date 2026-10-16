@@ -3,9 +3,18 @@
 This file provides guidance to Codex (Codex.ai/code) when working in
 this repository.
 
+## Evo integration (17 October 2026)
+
+ZX Evolution TS-Conf (`../retro-tang-evo-tsconf`, FPGA ID 0x0B) is the
+sixth core. `config/cores/evo.json` supplies its profile; `evo.c`/`vsd.c`
+supply ROM/CMOS/virtual SD protocols. Read `config/EVO.md` for the build,
+validation and unresolved physical-board video issue. The five existing
+siblings still delegate companion builds here; Evo's standalone entry
+points remain separate. Never describe this integration as board tested.
+
 ## Project overview
 
-**Tang Ultima** puts five machines into one **Tang Nano 20K** (Gowin
+**Tang Ultima** puts six machines into one **Tang Nano 20K** (Gowin
 GW2AR-18C) with a **BL616** (M0S Dock) beside it: **UKNC Nano**
 (`../tang-uknc`, МС0511), **PK8000 Nano** (`../tang-pk8000`, ПК8000),
 **Korvet Nano** (`../tang-korvet`, ПК8020), **ZS-256 Nano**
