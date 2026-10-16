@@ -1,0 +1,7 @@
+lets build stage2.bin also - I'll add it to the repo; and one more question - original docs contains something about efuses - dont we need them here also?
+************************************************************************
+Built successfully with make onboard-fw and copied the result to bin/onboard/stage2.bin (58,752 bytes), ready for the user to add to Git. Updated SCRATCH-WINDOWS.md to use this distributable path. Verified the copy, BFNP/FCFG headers and flash-region bounds; no hardware flashing was performed.
+
+SHA256: d842cf12b24db7e0b3313b2a7b276ce13c05232cf796bafd24c290ae0cff2e6f
+
+Efuse reading is required and already included in section 2 of the Windows guide. FPGA Partner at address 0 is encrypted and requires the factory-configured encryption efuses. Read the actual target board and proceed only if compatible; do not program efuses or write the author's saved efuse dump. This project's recorded board was fused with EF_CFG_0 = 0x431 (AES128). Our stage 2 remains a plain image at 0x40000 behind Partner. Added these clarifications to the guide. Nothing committed or pushed.

@@ -78,6 +78,9 @@ Partner остаётся программатором, и меню так и г�
 
 ## Прошивка платы
 
+Пошаговая прошивка всех трёх устройств под Windows через BLFlashCommand
+и Gowin Programmer: [SCRATCH-WINDOWS.md](SCRATCH-WINDOWS.md).
+
 ```
 make toolchain       инструменты в tools/ (~8 ГБ, один раз)
 make cores           пять битстримов -> bin/<ядро>.fs и bin/<ядро>.bin

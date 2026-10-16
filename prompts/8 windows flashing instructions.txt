@@ -1,0 +1,7 @@
+check project docs. I need russian SCRATCH-WINDOWS.md document added, containing exact command calls to flash all (tang's onboard BL616, tang's FPGA, companion BL616) under windows. For windows I downloaded BLFlashCube and Gowin's Programmer 1.9.9 - so instructions need basically .exe calls with proper arguments. Path to exe files does not matter, path to correct bin does - relative to repo root
+************************************************************************
+Added Russian SCRATCH-WINDOWS.md with PowerShell commands for onboard BL616 backup and efuse reads, FPGA Partner at 0, project stage 2 at 0x40000, FPGA external flash through Gowin Programmer, and companion BL616 firmware at 0. Included exact repository-relative image paths, INI generation, boot/reconnect steps, SD-card setup, and backup recovery. Linked it from README.md.
+
+Stage 2 is build/onboard/stage2.bin and is not tracked in Git; the guide calls out this prerequisite. Gowin uses the supplied bin/<core>.fs, while bin/<core>.bin is for the card and openFPGALoader.
+
+Paths and CLI arguments were checked against project files, local tool help, and vendor documentation. Windows 1.9.9 flashing was not tested on hardware. No commit or push.
