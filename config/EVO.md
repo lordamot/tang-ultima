@@ -113,3 +113,16 @@ both USB connections before the new board boot can be observed. The
 readable menu is verified in simulation; Ultima switching and this image's
 physical-board boot remain unverified. bin/evo.fs, bin/evo.bin and the
 staged /cores/evo.bin are synchronized.
+
+## WDC empty-floppy prompt (17 October 2026)
+
+The operator now confirms the physical WDC menu. WRONG DISK / Abort?
+(Y/N) after selecting 3 is WDC probing empty floppy A, before SD access.
+Press Y to abort that floppy operation; Space retries. Full-SPI BIOS
+simulation verifies that 3, then Y reaches Driver: sdzc and the SD file
+browser, with 3,546,817 memory checks and zero mismatches, 149 sectors
+read, no writes, and clean SDRAM/HDMI checks. Evo records the screen at
+sim/frames/wdc-sd-directory.png. Its test-directory files are fixtures,
+not a claim about the physical card. Physical SD browsing still awaits
+confirmation. This diagnosis changes documentation and a simulation
+trace only: FPGA/MCU/card and staged Ultima images need no reflash.
