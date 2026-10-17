@@ -89,3 +89,27 @@ The guarded virtual SD host tests pass with BOOT.$C present. Full BIOS
 simulation attempts SD reads but still fails memory/SD-consumption checks;
 the complete MCU sector-buffer uploads compare correctly. WDC boot is not
 verified. The physical card was not accessible through the USB debugger.
+
+## WDC boot fixes (17 October 2026)
+
+The standalone board showed corruption after SD boot was enabled. The new
+Evo FPGA image corrects DMA write-cycle selection and consecutive-grant
+timing, guards SD uploads/completions against cancelled request generations,
+and connects legacy 7FFD writes to TS-Conf RAM/ROM and screen paging. All
+four span modes and the 48K lock follow the original TS-Conf logic. Shared
+companion firmware and the target-4 wire protocol are unchanged.
+
+Validation: 64 independent RAM banks and all paging modes pass; cancelled
+same/different-LBA SD requests pass; 256-byte DMA copy and SDRAM capture
+tests pass, including delayed DQ; four video modes pass. The real-ROM
+simulation verifies all 21,571 WDC payload bytes at entry A700 and reaches
+the readable Select Driver menu, with 2,790,234 memory checks and zero
+mismatches. Select 3, SD on ZC. FPGA lint and timing pass with zero setup
+or hold violations. Evo's sim/frames/wdc-select-driver.png records the menu.
+
+The standalone FPGA configuration flash was backed up, programmed and
+verified by exact 907,418-byte readback. The operator must power-cycle
+both USB connections before the new board boot can be observed. The
+readable menu is verified in simulation; Ultima switching and this image's
+physical-board boot remain unverified. bin/evo.fs, bin/evo.bin and the
+staged /cores/evo.bin are synchronized.
