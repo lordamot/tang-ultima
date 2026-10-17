@@ -1,0 +1,9 @@
+is it so that each platform switch rewrites mcu sd?
+
+********************************************************************************
+
+If you mean the on-board MCU’s flash: yes. Every platform switch reads the selected core from SD, erases and rewrites the BL616 staging area at 0x100000, then loads that bitstream into FPGA SRAM over JTAG.
+
+The SD card is only read for this transfer. Neither MCU firmware nor the FPGA boot flash is rewritten by a normal switch. “Save to flash” separately rewrites the FPGA boot flash.
+
+So each switch does cause erase/write wear on the same MCU flash staging area.

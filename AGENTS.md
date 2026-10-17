@@ -3,6 +3,17 @@
 This file provides guidance to Codex (Codex.ai/code) when working in
 this repository.
 
+## RAM-only switching (17 October 2026)
+
+Current source stages XZ-compressed cores in internal BL616 RAM and decodes
+into FPGA SRAM over JTAG. No normal-switch MCU/FPGA flash writes; diagnostics
+are RAM-only too. Both firmware images build and all six cores pass host
+protocol/decoder checks, including UBSan. This path is NOT board tested.
+Read `onboard/RAM_SWITCH.md` for the RAM budget, validation and migration.
+Both MCUs need a one-time firmware update and SD `.bin.ram` sidecars;
+`make card-stage` generates those. Old loaders are refused, with no automatic
+flash fallback. Shipped binaries remain unchanged pending board validation.
+
 ## Evo integration (17 October 2026)
 
 ZX Evolution TS-Conf (`../retro-tang-evo-tsconf`, FPGA ID 0x0B) is the
@@ -32,8 +43,8 @@ mnano/        ONE BL616 firmware for all five cores (MiSTeryNano's, merged
               from the siblings' copies) plus ultima.c, coreload.c (the
               switch) and flashwr.c ("Save to flash")
 onboard/      stage 2 for the board's OWN BL616: the other end of the switch -
-              takes a core over a UART, keeps it in its flash, loads it into
-              the FPGA's SRAM over JTAG
+              receives a compressed core over UART into RAM, then loads
+              FPGA SRAM over JTAG
 tools/        mkimage.py (one .fs -> the bytes the flash holds, checked);
               mkstage.py (a core in stage 2's form, and the log decoder);
               onboard.sh and efuse_bl616.py for the board's own BL616; the
@@ -46,7 +57,9 @@ bin/          <core>.fs and <core>.bin for uknc, pk8000, korvet, zs256, bk,
 
 Started 12 September 2026.  **The switch works on a board**, as of the
 evening of 13 September: Korvet -> PK8000 -> UKNC, each chosen from the
-OSD and running seconds later, no flash written, no power cycle.  It took
+OSD and running seconds later, no FPGA flash written, no power cycle.
+That historical loader wrote MCU staging flash; the new RAM-only path above
+has host validation only.  It took
 three designs to get there - Gowin MultiBoot, which cannot be triggered
 on this board at all; writing the FPGA's flash and power-cycling, which
 works and is kept as "Save to flash"; and the board's own BL616 loading
@@ -64,11 +77,12 @@ FPGA's SRAM.**  Sipeed's FPGA Partner sits at that chip's flash address
 at 0x40000.  The dock's firmware sends the wanted core from the card to
 it - `mnano/coreload.c` over **SYS CMD 11**, `mister/coreload.v` in every
 core: a 2 KB TX FIFO into a 2 Mbaud UART on pin 69, one-byte answers
-back on pin 70 - stage 2 keeps it in its own 4 MB flash at 0x100000
-(`onboard/protocol.h`: B, 4 KB acknowledged chunks, crc; then L), erases
-the FPGA's SRAM and writes the bitstream through the JTAG in 1.1 s, and
-the dock resets itself onto the new machine.  The FPGA's own flash is
-never touched by a switch.  Power-up still loads flash address 0, so the
+back on pin 70 - stage 2 keeps the compressed `.bin.ram` payload in internal
+RAM (`onboard/protocol.h`: V capability check, C, 4 KB acknowledged chunks,
+CRC; then L), validates it, erases FPGA SRAM and decodes it through JTAG, and
+the dock resets itself onto the new machine. Neither MCU flash nor FPGA
+flash is written by the new switch path. Its board timing remains unmeasured.
+Power-up still loads flash address 0, so the
 Core form's last entry, **"Save to flash"**, writes the running machine
 there - `mnano/flashwr.c` over **SYS CMD 10**, `mister/flashwr.v` on the
 MSPI pins 59-62 that `-use_mspi_as_gpio` hands to user logic - and that
@@ -130,11 +144,10 @@ it is still in the three cores.
   flash") does, and that is the one that must not be interrupted.
   `ultima_boot()` reports which machine came up, makes its card
   directory, and warns if `/sd/ultima.ini` names a different core.
-- **Stage 2 is blind and its log is the only witness.**  Nothing it does
-  is visible from a PC, so it writes (tag, value) pairs into its flash
-  at 0x0FE000 - every step of a load, the first 32 bytes each way on
-  the link, when it started listening - and `make onboard-log` (UPDATE
-  held) reads them back.  One power-up is one log.
+- **Stage 2 diagnostics are now RAM-only.** Records and debug UART output
+  cover load steps and the first 32 bytes each way. They do not survive
+  power-off or ISP entry. `make onboard-log` reads only the old flash sector
+  at 0x0FE000 and may show stale records; it cannot read current RAM logs.
 - **SYS CMD 6 means three things, and CMD 8 two.**  CMD 6: RTC read on
   the UKNC, RAM poke on the PK8000 and Korvet (two address bytes), SDRAM
   poke on the ZS-256 and the BK (three address bytes, `sys_poke24`, the
@@ -182,9 +195,9 @@ it is still in the three cores.
   bitstream**: without `/sd/zs256/zs256.rom` it executes zeros.  **Nor
   has the BK**: without `/sd/bk/AZ.INI` and the ROM set it names it
   restarts for ever on empty memory.  Only `/sd/ultima.ini` and `/sd/cores/` are
-  in the root - and without `/sd/cores/<name>.bin` there is no switch at
-  all, just an OSD saying the file is missing (`make card`).  A switch
-  does not touch `ultima.ini`; "Save to flash" does.
+  in the root. Switching now requires `/sd/cores/<name>.bin.ram`; `.bin`
+  remains for Save to flash. Missing sidecars fail visibly (`make card`).
+  A switch does not touch `ultima.ini`; "Save to flash" does.
 - **The on-board BL616 is the board's only PC-side programmer.**  The
   `flash-mcu-onboard-*` targets overwrite its firmware; `make
   onboard-backup` and `make onboard-efuse` come first, always, and

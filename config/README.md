@@ -1,3 +1,12 @@
+# RAM-only switch candidate
+
+The current source stages compressed cores in internal MCU RAM, with no
+normal-switch flash writes and no hardware changes. `make card-stage`
+generates `.bin.ram` sidecars. Both MCU firmware images need a one-time
+update; shipped binaries remain unchanged pending board validation.
+See [RAM-only switching](../onboard/RAM_SWITCH.md) for the memory budget,
+builds, compatibility and verification limits.
+
 # Evo TS-Conf integration
 
 ZX Evolution TS-Conf is the sixth compiled protocol (FPGA ID 11), sourced

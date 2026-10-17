@@ -1,5 +1,12 @@
 # Tang Ultima
 
+The source now includes a **RAM-only switching candidate** for the existing
+hardware: compressed cores are received in MCU RAM and decoded into FPGA
+SRAM, with no normal-switch flash writes. Both firmware images build and
+all six cores pass host checks; this path is **not board validated** and
+shipped binaries are unchanged. Both MCUs need a one-time firmware update.
+See [RAM-only switching](onboard/RAM_SWITCH.md).
+
 ZX Evolution **TS-Conf** is now the sixth core, built from
 `../retro-tang-evo-tsconf`: `make core-evo`, then `make fw` and
 `make card-stage`. The common Core menu includes it; files use `/evo/`.
@@ -143,10 +150,13 @@ The Tang Nano 20K has a BL616 of its own - the board's USB programmer -
 and it owns the FPGA's JTAG.  When the board is not powered from a PC,
 Sipeed's firmware on it (the FPGA Partner) starts our stage 2
 (`onboard/`).  The "Core" form sends it the wanted bitstream from the
-card (`/cores/<name>.bin`) through the core - a UART on pins 69/70 - it
-keeps it in its own flash and loads it into the FPGA's SRAM over JTAG in
-about a second; the dock's BL616 restarts and comes up with the new
-machine.  The FPGA's flash is not touched.  Power-up loads whatever is
+card (`/cores/<name>.bin.ram`) through the core's UART on pins 69/70.
+The current source keeps the compressed core in internal MCU RAM, validates
+it, then decodes into FPGA SRAM over JTAG; the dock's BL616 restarts for the
+new machine. Neither MCU flash nor FPGA flash is written during this switch.
+This new RAM path has host validation only; its board timing is unmeasured.
+It requires matching updates on both MCUs and the SD sidecars described in
+[RAM-only switching](onboard/RAM_SWITCH.md).  Power-up loads whatever is
 at the FPGA's flash address 0; the Core form's last entry, **Save to
 flash**, writes the running machine there (through the MSPI pins,
 `mister/flashwr.v`), and that is what survives a power cycle.  **There

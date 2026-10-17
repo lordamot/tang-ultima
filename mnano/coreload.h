@@ -8,7 +8,7 @@
   the configuration flash untouched.  It cannot see the card, so the
   core is sent to it first, over a UART every core carries
   (mister/coreload.v, SYS CMD 11: pin 69 into the chip, 70 back), and it
-  keeps the bytes in its own flash until told to load them.
+  keeps a compressed core in internal RAM until told to load it.
 
   This is the dock's side of that: the CMD 11 primitives, and the
   conversation coreload_proto.h defines on top of them.  A switch is
@@ -42,9 +42,9 @@ int cl_ping(spi_t *spi);
 unsigned char cl_ping_status(void);   // the status byte the ping last read
 void cl_release(spi_t *spi);
 
-// Send the bitstream at `path` to stage 2, which stages it in its flash
-// under `name`.  0, or a negative CL_ERR_* below.  The file is checked
-// to be a bitstream for this FPGA before a byte goes.
+// Send the compressed `path.ram` sidecar into stage-2 RAM under `name`.
+// Stage 2 validates the complete decoded core before erasing FPGA SRAM.
+// A RAM-capable stage 2 is mandatory; there is no flash-staging fallback.
 int cl_send(spi_t *spi, const char *path, const char *name, cl_progress_t cb);
 
 // Tell stage 2 to load what it has.  Returns 0 when it said it is about
@@ -63,6 +63,8 @@ int cl_reload(spi_t *spi);
 #define CL_ERR_READ     -24
 #define CL_ERR_REFUSED  -25   // stage 2 said no: cl_last_code() has its byte
 #define CL_ERR_TIMEOUT  -26   // stage 2 stopped answering mid-way
+#define CL_ERR_VERSION  -28   // stage 2 lacks RAM-only protocol
+#define CL_ERR_RAMFILE  -29   // compressed sidecar missing
 #define CL_ERR_CMD11    -27   // the FPGA's FIFO never reports room: CMD 11 itself
 
 unsigned char cl_last_code(void);

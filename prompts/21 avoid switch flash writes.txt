@@ -1,0 +1,13 @@
+can we avoid mcu flash rewrites?
+
+********************************************************************************
+
+Yes. The practical approach is to preload a compressed core library into MCU flash once, then only read it during switches.
+
+I checked the current binaries: all six together compress to about 1.87 MiB with zlib, fitting within the 3 MiB after address 0x100000. Stage 2 could decompress the selected core in small RAM buffers while loading it over JTAG. Flash writes would happen only when installing or updating that library.
+
+We must also move the diagnostic log to RAM to eliminate all switch-related MCU flash writes.
+
+Direct SD-to-JTAG streaming cannot work through the current link: erasing the FPGA destroys the UART bridge carrying the data. A complete raw core is 907,418 bytes, exceeding the current stage-2 RAM layout.
+
+The compressed library is feasible from the sizes and code, but needs implementation and board validation.

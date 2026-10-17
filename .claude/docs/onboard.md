@@ -1,3 +1,10 @@
+> Current-source update, 17 October 2026: the new RAM-only loader is
+> described in [onboard/RAM_SWITCH.md](../../onboard/RAM_SWITCH.md).
+> It builds and passes host checks but has not been installed or board tested.
+> Normal switches stage compressed cores in RAM and do not write flash;
+> the flash staging/log account below describes the previous loader.
+> Backup, efuse and Partner preservation procedures below still apply.
+
 # The on-board BL616: reflashing the board's own programmer
 
 Written 13 September 2026, when the Makefile targets were prepared.

@@ -8,6 +8,7 @@ import argparse
 import json
 from pathlib import Path
 import shutil
+from pack_ramcore import pack_file
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / 'build/card'
@@ -94,5 +95,11 @@ if __name__ == '__main__':
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
         copied += 1
+    if not args.config_only:
+        # Derive sidecars from the actual staged binaries, including preserved
+        # older cores when --refresh was not requested. Never mismatch pairs.
+        for core in json.loads((ROOT / 'config/companion.json').read_text())['cores']:
+            bitstream = below(OUTPUT, core['bitstream'])
+            pack_file(bitstream, Path(str(bitstream) + '.ram'))
     print(f'card-stage: {copied} files copied; {len(copies)} shipped files in {OUTPUT}')
     print('Copy build/card contents to the card root; keep your existing saved settings and writable images.')

@@ -10,7 +10,7 @@
 
 static struct bflb_device_s *uart;
 
-#define RING 16384
+#define RING 8192
 static volatile uint8_t  ring[RING];
 static volatile uint32_t ring_wr, ring_rd;
 

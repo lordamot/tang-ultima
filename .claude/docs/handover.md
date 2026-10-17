@@ -1,3 +1,20 @@
+# Handover, 17 October 2026: RAM-only switch candidate
+
+The user requires normal switches without flash writes or hardware changes.
+Source commit/push is explicitly authorized; shipped binaries remain unchanged.
+Implemented compressed staging in internal RAM; see onboard/RAM_SWITCH.md.
+The SDK already makes 447 KiB available without Wi-Fi; the new stage-2 link
+leaves 13 KiB heap with stack/buffers reserved. All six current cores fit.
+Both firmware builds and host protocol/decoder checks pass. No board flashed
+or tested; bin/bl616.bin and sibling binaries remain their existing release.
+Build candidates are build/fw/bl616.bin and build/onboard/stage2.bin.
+A one-time update of both MCUs and SD .bin.ram sidecars is required before
+normal switching can stop writing flash. New firmware refuses incompatible
+loaders and has no flash staging fallback. RAM diagnostics replace flash
+logs; onboard-log can only read stale historical records now.
+
+---
+
 # Handover, 16 October 2026: committed and published
 
 The shared JSON companion and all five sibling integrations are committed

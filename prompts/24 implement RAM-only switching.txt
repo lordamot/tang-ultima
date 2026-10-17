@@ -1,0 +1,11 @@
+we must do something leaving in current - so no flashing, but works
+
+********************************************************************************
+
+Implemented a software-only RAM staging path for the existing board. Compressed cores stay in MCU RAM and are decoded into FPGA SRAM; normal switches have no flash writes.
+
+Both firmware images build. All six cores pass byte-for-byte transfer/decoder tests, including corruption and recovery checks.
+
+It is not board validated yet. Using it requires a one-time update of both MCU firmwares and the SD files. No hardware was flashed.
+
+Details: onboard/RAM_SWITCH.md

@@ -1,5 +1,9 @@
 /*
-  stage.h - the on-board BL616's flash, as stage 2 and the host agree on it.
+  stage.h - legacy flash-staging layout and diagnostic tags.
+
+  The current RAM-only loader uses only the LOG_SIZE and LOG_* definitions
+  below. It neither reads STAGE_ADDR nor writes the LOG flash sector.
+  The addresses remain for tools/mkstage.py and historical recovery images.
 
   tools/mkstage.py writes the staged core in this form and the Makefile
   puts it at STAGE_ADDR; stage2 (main.c) reads it back and writes its log

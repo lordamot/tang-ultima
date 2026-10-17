@@ -12,6 +12,15 @@
 
 ## Unreleased
 
+- Stage compressed cores in internal MCU RAM instead of rewriting MCU flash
+  on every switch. Decode directly into FPGA SRAM over the existing JTAG;
+  diagnostics also stay in RAM. No new components or wiring.
+- Generate `.bin.ram` SD sidecars; require matching RAM-loader firmware on
+  both MCUs and refuse old loaders without a flash-writing fallback.
+- Both firmware images build; all six cores pass production transport/decoder
+  host checks and UBSan. No board installation or validation; shipped binaries
+  remain unchanged. See `onboard/RAM_SWITCH.md` for migration and limits.
+
 - The USB mouse on a combined receiver (Logitech 046d:c534, keyboard and
   mouse in one): HID transfers ask for the endpoint's whole packet into
   64-byte buffers - the receiver's mouse interface sends up to 20 bytes

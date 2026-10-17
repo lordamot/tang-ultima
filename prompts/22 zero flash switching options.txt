@@ -1,0 +1,11 @@
+suggest something to avoid flashing at all
+
+********************************************************************************
+
+For zero flash writes during switching, I would use a RAM staging buffer: add at least 1 MiB of usable external RAM to the on-board loader, receive the complete core into RAM, verify its CRC, then load FPGA SRAM over JTAG. Keep diagnostics in RAM too. The SD layout and current transfer route can remain the same. Exact RAM wiring and available GPIO need checking before choosing hardware.
+
+Another option is giving the on-board loader its own SD connection, so it can stream directly from SD into JTAG using small buffers.
+
+A direct wire between the MCUs alone is insufficient: the current SD-card access also passes through the FPGA and disappears during reconfiguration.
+
+Without hardware changes, eliminating every flash write for all six cores is not established with the current RAM budget. Either hardware design would require a one-time firmware update; subsequent switches would not write flash.

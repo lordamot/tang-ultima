@@ -46,9 +46,9 @@
 #   make flash-mcu-onboard-stage2  a firmware at 0x40000 (STAGE2=<file>)
 #   make flash-mcu-onboard-restore BACKUP=<file>  a backup back to address 0
 #   make onboard-fw            build onboard/, stage 2 -> build/onboard/stage2.bin
-#   make flash-mcu-onboard-core CORE=uknc   stage a core in the chip's flash
-#                              at 0x100000 for stage 2 to load into the FPGA
-#   make onboard-log           read back what stage 2 logged on its last run
+#   make flash-mcu-onboard-core CORE=uknc   legacy flash staging only
+#                              (unused by the current RAM loader)
+#   make onboard-log           read the legacy flash log (not RAM diagnostics)
 # All of these need the chip in boot mode: hold UPDATE (the small button
 # by the HDMI socket) while plugging the board in, and the dock unplugged.
 #
@@ -120,7 +120,7 @@ FW_BIN   ?= bin/bl616.bin
 FW_BOARD := bl616dk -DCMAKE_C_FLAGS=-DM0S_DOCK=1 -DCONFIG_BT_STACK_CLI=0
 FW_OUT   := mnano/build/build_out/misterynano_fw_bl616.bin
 
-.PHONY: all help toolchain cores card fw menu-test lint clean \
+.PHONY: ramstage-test all help toolchain cores card fw menu-test lint clean \
         flash-image flash-mcu \
         onboard-status onboard-fetch onboard-backup onboard-efuse \
         flash-mcu-onboard-orig flash-mcu-onboard-orig-encrypted \
@@ -248,6 +248,10 @@ card-config: config-check
 	$(PYTHON) tools/stage_card.py --config-only
 	@echo "JSON card files: build/card/ (copy its contents to the SD card)"
 
+# Production RAM decoder and companion protocol exercised on the host.
+ramstage-test:
+	$(PYTHON) tools/test_ramstage.py
+
 # Uses existing bin/ bitstreams; it never rebuilds FPGA cores or writes SD.
 card-stage: config-check
 	$(PYTHON) tools/stage_card.py
@@ -352,7 +356,7 @@ ONBOARD_FILES := $(addprefix $(ONBOARD)/,friend_20k_bl616.bin \
 # what goes to 0x40000 behind the Partner: stage 2 from onboard/ (`make
 # onboard-fw`); STAGE2=bin/onboard/fpga_companion_nano20k.bin is upstream's
 STAGE2  ?= $(BUILD)/onboard/stage2.bin
-# the core stage 2 loads into the FPGA, staged in the chip's flash
+# Legacy flash staging addresses, unused by the current RAM loader
 CORE    ?= uknc
 STAGE_ADDR := 0x100000
 LOG_ADDR   := 0x0FE000
@@ -463,10 +467,10 @@ flash-mcu-onboard-stage2: $(STAGE2)
 	$(call ONBOARD_WRITE,1,$(STAGE2),0x40000)
 
 #-----------------------------------------------------------------------
-# Stage 2 of our own (onboard/): loads a core staged in the chip's flash
-# into the FPGA's SRAM over JTAG when the Partner starts it - i.e. when
-# the board is powered from something that is not a PC.  onboard/stage.h
-# and tools/mkstage.py share the layout.
+# Stage 2 receives a compressed core into internal RAM, validates it, then
+# streams it into FPGA SRAM over JTAG. No switch-time flash writes.
+# The Partner starts it on non-PC power. Legacy flash-stage tooling below
+# remains for historical recovery images; the RAM loader does not use it.
 #-----------------------------------------------------------------------
 STAGE2_OUT := onboard/build/build_out/stage2_bl616.bin
 
@@ -497,7 +501,7 @@ flash-mcu-onboard-core: $(BUILD)/onboard/stage-$(CORE).bin
 	$(ONBOARD_SESSION)
 	$(call ONBOARD_WRITE_RAW,1,$<,$(STAGE_ADDR))
 
-# what stage 2 wrote on its last run
+# Historical flash log only; current RAM diagnostics are not read here
 onboard-log:
 	$(ONBOARD_SESSION)
 	$(BLFLASH) --interface=uart --baudrate=$(BAUDRATE) --port=$(COMX) \

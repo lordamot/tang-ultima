@@ -15,7 +15,6 @@
 
 #include "coreload.h"
 #include "coreload_proto.h"
-#include "flashwr.h"     // BIT_MAGIC_OFF, BIT_IDCODE_OFF: the same checks as the installer
 #include "sysctrl.h"
 #include "sdc.h"
 
@@ -139,6 +138,10 @@ int cl_ping(spi_t *spi) {
   ping_status = cl_status(spi);
   if(cl_push(spi, &b, 1) < 0) return CL_ERR_CMD11;
   if(cl_reply(spi, 500) != CL_OK) { ping_status = cl_status(spi); return CL_ERR_LINK; }
+  b = CL_CAPS;
+  cl_flush(spi);
+  if(cl_push(spi, &b, 1) < 0) return CL_ERR_CMD11;
+  if(cl_reply(spi, 500) != CL_RAM_VERSION) return CL_ERR_VERSION;
   return 0;
 }
 
@@ -157,37 +160,49 @@ int cl_send(spi_t *spi, const char *path, const char *name, cl_progress_t cb) {
   UINT got;
   unsigned long size, sent = 0;
   uint32_t crc = 0;
-  unsigned char hdr[21];
+  unsigned char hdr[29];
+  unsigned char container[16];
+  char ram_path[300];
+  uint32_t raw_size, raw_crc;
   int r;
 
   if(cb) cb(CL_STAGE_CONNECT, 0, 0);
 
-  // the file, and its head: the same two fields the flash installer
-  // insists on, so nothing that is not a bitstream leaves the card
+  // The .bin remains available for Save to flash. Switching requires its
+  // RAM-sized .ram sidecar and a RAM-capable stage 2; never fall back to B.
+  if(snprintf(ram_path, sizeof(ram_path), "%s.ram", path) >= (int)sizeof(ram_path))
+    return CL_ERR_OPEN;
   sdc_lock();
-  FRESULT fr = f_open(&fil, path, FA_OPEN_EXISTING | FA_READ);
+  FRESULT fr = f_open(&fil, ram_path, FA_OPEN_EXISTING | FA_READ);
   if(fr == FR_OK) size = f_size(&fil);
   sdc_unlock();
-  if(fr != FR_OK) { printf("coreload: %s: f_open %d\r\n", path, fr); return CL_ERR_OPEN; }
-  if(size < 0x10000UL || size > 0x100000UL) { sdc_lock(); f_close(&fil); sdc_unlock(); return CL_ERR_SIZE; }
-  sdc_lock(); fr = f_read(&fil, buf, 64, &got); sdc_unlock();
-  if(fr != FR_OK || got != 64) { sdc_lock(); f_close(&fil); sdc_unlock(); return CL_ERR_READ; }
-  if(buf[BIT_MAGIC_OFF] != 0xa5 || buf[BIT_MAGIC_OFF + 1] != 0xc3 ||
-     buf[BIT_IDCODE_OFF] != 0x00 || buf[BIT_IDCODE_OFF + 1] != 0x00 ||
-     buf[BIT_IDCODE_OFF + 2] != 0x08 || buf[BIT_IDCODE_OFF + 3] != 0x1b) {
-    sdc_lock(); f_close(&fil); sdc_unlock();
-    return CL_ERR_NOTBIT;
+  if(fr != FR_OK) { printf("coreload: %s: f_open %d\r\n", ram_path, fr); return CL_ERR_RAMFILE; }
+  if(size <= 16 || size > 360UL * 1024 + 16) { r = CL_ERR_SIZE; goto out; }
+  sdc_lock(); fr = f_read(&fil, container, sizeof(container), &got); sdc_unlock();
+  if(fr != FR_OK || got != sizeof(container)) { r = CL_ERR_READ; goto out; }
+  if(memcmp(container, "URM1", 4)) { r = CL_ERR_NOTBIT; goto out; }
+  raw_size = (uint32_t)container[4] | ((uint32_t)container[5] << 8) |
+             ((uint32_t)container[6] << 16) | ((uint32_t)container[7] << 24);
+  raw_crc = (uint32_t)container[8] | ((uint32_t)container[9] << 8) |
+            ((uint32_t)container[10] << 16) | ((uint32_t)container[11] << 24);
+  uint32_t packed_size = (uint32_t)container[12] | ((uint32_t)container[13] << 8) |
+                        ((uint32_t)container[14] << 16) | ((uint32_t)container[15] << 24);
+  if(raw_size < 0x10000 || raw_size > 0x100000 || packed_size != size - 16) {
+    r = CL_ERR_SIZE; goto out;
   }
-  sdc_lock(); fr = f_lseek(&fil, 0); sdc_unlock();
-  if(fr != FR_OK) { sdc_lock(); f_close(&fil); sdc_unlock(); return CL_ERR_READ; }
+  size = packed_size;
 
   printf("coreload: sending %s, %lu bytes\r\n", path, size);
 
-  // BEGIN: stage 2 erases its slot, a second or two
-  hdr[0] = CL_BEGIN;
+  // BEGIN_RAM: reserve the bounded SRAM buffer; no flash access.
+  hdr[0] = CL_BEGIN_RAM;
   hdr[1] = size & 0xff; hdr[2] = (size >> 8) & 0xff; hdr[3] = (size >> 16) & 0xff; hdr[4] = (size >> 24) & 0xff;
   memset(hdr + 5, 0, 16);
   strncpy((char *)hdr + 5, name, 15);
+  for(int i = 0; i < 4; i++) {
+    hdr[21 + i] = raw_size >> (8 * i);
+    hdr[25 + i] = raw_crc >> (8 * i);
+  }
   cl_flush(spi);
   if(cl_push(spi, hdr, sizeof(hdr)) < 0) { r = CL_ERR_CMD11; goto out; }
   r = cl_reply(spi, 10000);
@@ -195,13 +210,13 @@ int cl_send(spi_t *spi, const char *path, const char *name, cl_progress_t cb) {
   if(r != CL_OK) { r = CL_ERR_REFUSED; goto out; }
 
   // the bytes, a chunk at a time, each one acknowledged once it is in
-  // stage 2's flash - so nothing arrives there while it writes
-  for(;;) {
+  // stage 2's RAM; the full core must arrive before the FPGA is erased
+  while(sent < size) {
+    UINT want = size - sent < CL_CHUNK ? size - sent : CL_CHUNK;
     sdc_lock();
-    fr = f_read(&fil, buf, CL_CHUNK, &got);
+    fr = f_read(&fil, buf, want, &got);
     sdc_unlock();
-    if(fr != FR_OK) { r = CL_ERR_READ; goto out; }
-    if(got == 0) break;
+    if(fr != FR_OK || got != want) { r = CL_ERR_READ; goto out; }
     crc = crc32_update(crc, buf, got);
     cl_flush(spi);
     if(cl_push(spi, buf, got) < 0) { r = CL_ERR_CMD11; goto out; }
@@ -216,7 +231,7 @@ int cl_send(spi_t *spi, const char *path, const char *name, cl_progress_t cb) {
   hdr[0] = crc & 0xff; hdr[1] = (crc >> 8) & 0xff; hdr[2] = (crc >> 16) & 0xff; hdr[3] = (crc >> 24) & 0xff;
   cl_flush(spi);
   if(cl_push(spi, hdr, 4) < 0) { r = CL_ERR_CMD11; goto out; }
-  r = cl_reply(spi, 3000);
+  r = cl_reply(spi, 30000);
   if(r < 0)      { r = CL_ERR_TIMEOUT; goto out; }
   if(r != CL_OK) { r = CL_ERR_REFUSED; goto out; }
   printf("coreload: %lu bytes staged, crc %08lx\r\n", sent, (unsigned long)crc);
@@ -230,7 +245,7 @@ out:
 static int cl_command(spi_t *spi, unsigned char c) {
   cl_flush(spi);
   if(cl_push(spi, &c, 1) < 0) return CL_ERR_CMD11;
-  int r = cl_reply(spi, 3000);
+  int r = cl_reply(spi, 30000);
   if(r < 0)      return CL_ERR_TIMEOUT;
   if(r != CL_OK) return CL_ERR_REFUSED;
   return 0;
@@ -253,6 +268,8 @@ const char *cl_strerror(int err) {
     snprintf(s, sizeof(s), "CMD 11: FIFO never has room (st %02x)", ping_status);
     return s;
   }
+  case CL_ERR_VERSION:  return "Update on-board firmware";
+  case CL_ERR_RAMFILE:  return "SD core .bin.ram missing";
   case CL_ERR_OPEN:     return "cannot open the core file";
   case CL_ERR_SIZE:     return "the core file is the wrong size";
   case CL_ERR_NOTBIT:   return "not a bitstream for this FPGA";
@@ -260,6 +277,7 @@ const char *cl_strerror(int err) {
   case CL_ERR_TIMEOUT:  return "the board's BL616 stopped answering";
   case CL_ERR_REFUSED:
     switch(last_code) {
+    case CL_EVERSION: return "refused: RAM protocol needed";
     case CL_ELENGTH:  return "refused: the size";
     case CL_ECRC:     return "refused: the crc does not match";
     case CL_ENOSTAGE: return "refused: nothing staged";

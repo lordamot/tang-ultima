@@ -7,6 +7,8 @@
 !/tools/embed_companion.py
 !/tools/test_companion.py
 !/tools/stage_card.py
+!/tools/pack_ramcore.py
+!/tools/test_ramstage.py
 !/tools/audit_siblings.py
 !/tools/connect_siblings.py
 /build/

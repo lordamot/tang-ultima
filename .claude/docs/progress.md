@@ -891,3 +891,59 @@ in Korvet and the two pre-existing commits in BK (USB packet size and card
 layout). No force pushes or merges were needed. BK's pre-existing untracked
 AGENTS.md was excluded. All six firmware binaries remain identical; no
 hardware was flashed. A final documentation commit records this publication.
+
+
+## 17 October 2026: RAM-only switching candidate, existing hardware
+
+The user requires switches without MCU flash rewriting and without hardware
+changes. Re-examining the SDK linker map found 447 KiB of internal RAM with
+Wi-Fi unused (the earlier chat estimate missed the 128 KiB reclaimed region).
+Implemented XZ/LZMA2 sidecars with a 4 KiB dictionary, a bounded 360 KiB
+compressed buffer and 40 KiB decoder arena. All six current 907418-byte cores
+fit; UKNC is largest at 361296 compressed bytes. Stage 2 validates complete
+decoded size, CRC and device header before FPGA erasure, then decodes again
+into the existing JTAG writer. UART stays on existing pins and CMD 11.
+
+Stage-2 switch/log erase/program calls are removed; logs are RAM-only.
+The dock checks a RAM protocol capability before transfer; old loaders are
+refused and the new loader refuses legacy flash staging. No automatic flash
+fallback. Explicit Save to flash and firmware/recovery targets retain their
+existing meaning. Card staging adds .bin.ram sidecars to the actual staged
+.bin files. See onboard/RAM_SWITCH.md for protocol, limits and migration.
+
+Verification: make onboard-fw and make fw pass; map has 0x3400 (13 KiB) heap
+remaining with static buffers and 4 KiB stack already reserved.
+make ramstage-test passes for all six actual binaries, using production
+companion transport, stage-2 command handlers and decoder with hardware/SD
+mocks. Output is byte-identical; corruption, truncation, wrong headers/sizes,
+oversized dictionaries, repeat transfers, old protocol, SD failures and
+JTAG failure recovery are exercised. RAMSTAGE_UBSAN=1 make ramstage-test
+also passes. make card-stage passes 55 config checks and stages six valid
+sidecars; Python independently decompressed/compared each staged pair.
+make menu-test passes both modes with 58 screens and zero errors each.
+git diff --check passes. Logs are build/*ram*.log and build/ramstage-test.log.
+
+Candidates: build/fw/bl616.bin (528096 bytes), SHA256
+e5a349062bcd68c7be8ce3c4720a7075c6f7cebf1345816e381f84b89ab7c388;
+build/onboard/stage2.bin (65664 bytes), SHA256
+5244874a0965209d3e02706eadc696287d9863d5ad01d6bf6bb7dcc057a2fc71.
+Shipped bin/bl616.bin and all sibling trees/binaries are untouched. No
+commits, pushes, FPGA changes, or hardware flashing/testing. Both MCUs need
+a one-time firmware update and the card sidecars before the new behavior
+can be used. Physical SRAM availability, decode/JTAG pauses and boot timing
+remain board checks; do not claim this new path works on the board yet.
+
+
+## 17 October 2026: publish the RAM-only switch source
+
+The user explicitly authorized committing and pushing this implementation
+and its documentation, overriding the standing no-push/ask-before-commit
+rules for this task. Updated AGENTS.md, the changelog, main guide,
+configuration guide and stage-2/handover notes to distinguish RAM staging
+from the historical MCU flash-staging path and preserve the validation limits.
+Re-ran make ramstage-test successfully before publication; git diff --check
+passes. GitHub main matched the local starting tip 977ee7c before publication.
+Only tang-ultima source, tests, documentation and this conversation's transcript
+are included. The pre-existing unrelated prompts/15 file is left untracked.
+Shipped firmware and all sibling repositories remain unchanged; candidate
+installation and board validation are still pending. No hardware was flashed.

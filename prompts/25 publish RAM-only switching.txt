@@ -1,0 +1,6 @@
+commit and push - and update docs
+
+********************************************************************************
+
+Committed and pushed RAM-only switching and updated documentation to main.
+Host checks pass; board validation is pending. Shipped firmware binaries are unchanged.

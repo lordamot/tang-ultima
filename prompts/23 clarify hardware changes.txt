@@ -1,0 +1,12 @@
+what meant by hardware changes?
+
+********************************************************************************
+
+I meant physically adding components or wires:
+
+- RAM option: solder an external RAM chip or module to available pins on the board’s BL616, with power and ground. It would hold the complete core during reconfiguration.
+- SD option: wire an SD socket directly to that BL616, so it can read the bitstream while the FPGA is stopped.
+
+Neither is an established modification for this board; pin availability and electrical compatibility need checking. My earlier suggestion was an architectural option, not a ready wiring recipe.
+
+With the board unchanged, I haven’t established a way to eliminate flash writes for every core.
