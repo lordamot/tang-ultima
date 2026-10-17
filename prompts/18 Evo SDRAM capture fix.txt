@@ -1,0 +1,11 @@
+do your best
+
+****
+
+Investigated the remaining boot/video issue and reproduced an SDRAM fallback defect.
+
+while research -  kiss
+
+****
+
+Kept the fix small: late E capture now moves one clock, from ph 2 to ph 3, instead of two clocks to ph 4. The old RTL fails at modeled tAC=18 ns; the corrected path passes the early/late regression, DMA, NeoGS and video checks. Simulation failures now exit nonzero. Rebuilt the FPGA, passed timing, and updated Ultima's Evo image. Physical-board validation and a visible standard BIOS boot remain unconfirmed.

@@ -52,3 +52,12 @@ Prepared and checked in an isolated copy before applying:
 These are host/build checks. Evo's SDRAM pad timing is unconstrained.
 The standalone core's garbled physical-board TR-DOS video remains unresolved;
 this integration has not been switched to, booted or flashed on a board.
+
+## SDRAM capture correction (17 October 2026)
+
+The Evo FPGA image now uses ph 3 for late E capture, one clock after
+normal ph 2 capture. The previous ph 4 fallback failed its SDRAM self-test
+with `+SDRAM_TAC=18`. The corrected path passes the early/late regression,
+DMA and NeoGS with delayed capture selected. The rebuilt FPGA passes its
+timing gate. This is an FPGA-only update; the shared firmware is unchanged.
+Physical-board validation and the garbled-video diagnosis remain open.
