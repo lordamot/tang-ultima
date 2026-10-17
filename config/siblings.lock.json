@@ -73,7 +73,7 @@
       }
     },
     "retro-tang-evo-tsconf": {
-      "revision": "8c3f04859aaf436b15a5f12f0dc45877083cc344",
+      "revision": "b759e25fdd12be1269f0fe438fc3331d55529638",
       "version": "0.1.9 alpha",
       "files": {
         "mnano/menu.c": "94b946b63bbadba7de1dabdbf93640a6a6a4ea301ca5c7c070a03b83171c619b",

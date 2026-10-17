@@ -1,8 +1,7 @@
 # ZX Evolution TS-Conf in Tang Ultima
 
 Added 17 October 2026 from `retro-tang-evo-tsconf` v0.1.9 alpha.
-The source repository has no commits; `siblings.lock.json` records file
-hashes and revision `uncommitted` rather than inventing a source commit.
+`siblings.lock.json` records the reviewed source revision and file hashes.
 
 ## Build and card
 
@@ -72,3 +71,21 @@ The asymmetric fetch/render regression passes 38 checks; the original code
 fails all 38. The earlier uniform-fill test did not check byte/color order.
 This is FPGA-only; shared companion firmware is unchanged. Clean output
 still requires operator confirmation after the new SRAM load and dock reset.
+
+## Board confirmation and SD boot (17 October 2026)
+
+The operator confirms correct TR-DOS output after the corrected standalone
+FPGA image was programmed to configuration flash and USB power cycled.
+This confirms the video fix; it does not verify switching into Evo from
+Ultima or WDC execution. Shared firmware remains unchanged.
+
+Evo now supplies /evo/SD/BOOT.$C, an exact copy of its existing WDC v1.60
+(Wild Copier). The BIOS defaults select normal reset into TR-DOS; default
+Shift+F11 selects SD boot. Ctrl+F11 opens BIOS setup: Boot Device =
+SD Z-contr, Reset to = BD boot.$c. Preserve users' existing CMOS/media.
+TR-DOS No disk concerns its floppy drive, not the virtual SD card.
+
+The guarded virtual SD host tests pass with BOOT.$C present. Full BIOS
+simulation attempts SD reads but still fails memory/SD-consumption checks;
+the complete MCU sector-buffer uploads compare correctly. WDC boot is not
+verified. The physical card was not accessible through the USB debugger.
