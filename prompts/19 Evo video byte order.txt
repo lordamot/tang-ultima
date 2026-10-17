@@ -1,0 +1,11 @@
+do we need mcu also?
+
+****
+
+Not for the SDRAM fix—that changes only the FPGA. Existing Evo MCU firmware just needs a dock reset. If the dock has Ultima's older five-core firmware, it needs the updated tang-ultima/bin/bl616.bin to recognize Evo.
+
+check ./prompts/problem.jpg - that should give you clues
+
+****
+
+The photo shows adjacent character pairs exchanged: 1986 becomes 9168. Swapping neighboring bytes in the ROM banner exactly reproduces the photographed text. The E port is even-byte-high; the copied TS-Conf video fetch expects even-byte-low. Normalize the word once in the fetch. Also restore the 256-color renderer's eight-bit pixel width. The asymmetric regression now passes all 38 checks. Rebuilt and loaded the corrected FPGA into SRAM; no MCU change or flash write. Clean board output awaits confirmation after resetting the dock while keeping Tang powered.

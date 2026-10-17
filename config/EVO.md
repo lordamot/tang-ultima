@@ -61,3 +61,14 @@ with `+SDRAM_TAC=18`. The corrected path passes the early/late regression,
 DMA and NeoGS with delayed capture selected. The rebuilt FPGA passes its
 timing gate. This is an FPGA-only update; the shared firmware is unchanged.
 Physical-board validation and the garbled-video diagnosis remain open.
+
+## TR-DOS character order (17 October 2026)
+
+The operator photo shows adjacent character pairs exchanged (`1986` becomes
+`9168`). Evo's E port returns even-byte-high words; NedoPC's TS-Conf video
+fetch expects even-byte-low. Normalize that word once in video_ts_fetch.
+Also restore the 256-color renderer's pixel width from four to eight bits.
+The asymmetric fetch/render regression passes 38 checks; the original code
+fails all 38. The earlier uniform-fill test did not check byte/color order.
+This is FPGA-only; shared companion firmware is unchanged. Clean output
+still requires operator confirmation after the new SRAM load and dock reset.
